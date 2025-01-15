@@ -18,6 +18,8 @@ from django.shortcuts import redirect
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth.models import User
 from .serializers import UserSerializer
+from django.utils import timezone  # Añade esta importación
+from datetime import timedelta     # Añade esta importación
 
 from .serializers import (
     RolSerializer, TrabajadorSerializer, UsuarioSerializer, NoticiaSerializer,
@@ -99,6 +101,32 @@ class PublicidadViewSet(viewsets.ModelViewSet):
 class NoticiaViewSet(viewsets.ModelViewSet):
     queryset = Noticia.objects.all()
     serializer_class = NoticiaSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Obtiene la IP del cliente
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+            
+        # Incrementa el contador de visitas
+        instance.incrementar_visitas(ip_address=ip)
+        
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def mas_vistas(self, request):
+        hace_24h = timezone.now() - timedelta(hours=24)
+        noticias_mas_vistas = self.get_queryset().filter(
+            estado=3,
+            ultima_actualizacion_contador__gte=hace_24h
+        ).order_by('-contador_visitas')[:10]
+        
+        serializer = self.get_serializer(noticias_mas_vistas, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
     def upload_image(self, request):
@@ -314,3 +342,76 @@ def update_user_profile(request):
         'apellido': trabajador.apellido,
         'foto_perfil': trabajador.get_foto_perfil(),  # Método que devuelve la URL o el archivo local
     }, status=status.HTTP_200_OK)
+
+
+#para las reacciones de las noticias:
+
+
+# views.py
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Noticia, ReaccionNoticia
+from .serializers import ReaccionNoticiaSerializer
+
+@api_view(['GET', 'POST', 'DELETE'])
+def reacciones_noticia(request, id):
+    try:
+        noticia = Noticia.objects.get(pk=id)
+    except Noticia.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        # Cualquier usuario puede ver el conteo
+        return Response(noticia.get_conteo_reacciones())
+
+    # Para POST y DELETE requerimos autenticación
+    if not request.user.is_authenticated:
+        return Response(
+            {'error': 'Debes iniciar sesión para realizar esta acción'}, 
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    if request.method == 'POST':
+        tipo_reaccion = request.data.get('tipo_reaccion')
+        if not tipo_reaccion:
+            return Response(
+                {'error': 'tipo_reaccion es requerido'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reaccion, created = ReaccionNoticia.objects.update_or_create(
+            noticia=noticia,
+            usuario=request.user,
+            defaults={'tipo_reaccion': tipo_reaccion}
+        )
+        
+        serializer = ReaccionNoticiaSerializer(reaccion)
+        return Response(
+            serializer.data, 
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    elif request.method == 'DELETE':
+        ReaccionNoticia.objects.filter(
+            noticia=noticia,
+            usuario=request.user
+        ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def mi_reaccion(request, id):
+    try:
+        noticia = Noticia.objects.get(pk=id)
+        reaccion = ReaccionNoticia.objects.get(
+            noticia=noticia,
+            usuario=request.user
+        )
+        serializer = ReaccionNoticiaSerializer(reaccion)
+        return Response(serializer.data)
+    except Noticia.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    except ReaccionNoticia.DoesNotExist:
+        return Response({'tipo_reaccion': None})

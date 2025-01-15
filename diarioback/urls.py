@@ -18,8 +18,12 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-
+from . import views
 # Crear un router y registrar todos los viewsets
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views
+
 router = DefaultRouter()
 router.register(r'roles', RolViewSet)
 router.register(r'users', UserrViewSet, basename='user')  # Asegúrate de que 'user' no esté duplicado
@@ -48,5 +52,9 @@ urlpatterns = [
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     # Nueva ruta para actualizar perfil de trabajador
     path('user-profile/', UserProfileView.as_view(), name='update_trabajador_profile'),
+    path('noticias/<int:id>/reacciones/', views.reacciones_noticia, name='reacciones_noticia'),
+    path('noticias/<int:id>/mi-reaccion/', views.mi_reaccion, name='mi_reaccion'),
+    path('diarioback/noticias/mas-vistas/', views.NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
+
 ]
 

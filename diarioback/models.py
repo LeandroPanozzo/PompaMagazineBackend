@@ -3,6 +3,8 @@ from django.contrib.auth.models import User
 import requests
 import os
 from django.core.files.uploadedfile import InMemoryUploadedFile
+from django.utils import timezone
+from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 
@@ -157,6 +159,16 @@ def delete_from_imgur(image_url):
     # Implementar eliminación si es necesario
     pass
 
+class NoticiaVisita(models.Model):
+    noticia = models.ForeignKey('Noticia', on_delete=models.CASCADE, related_name='visitas')
+    fecha = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['fecha']),
+            models.Index(fields=['noticia']),
+        ]
 
 from django.utils.text import slugify
 
@@ -165,7 +177,7 @@ class Noticia(models.Model):
         ('Portada', 'Portada'),
         ('Política', 'Política'),
         ('Economía', 'Economía'),
-        ('Cultura', 'Cultura'),
+        ('Cultura y sociedad', 'Cultura y sociedad'),
         ('Mundo', 'Mundo'),
         ('Deportes', 'Deportes'),
     ]
@@ -176,6 +188,8 @@ class Noticia(models.Model):
     fecha_publicacion = models.DateField()
     url = models.URLField(max_length=200, blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, editable=False)
+    contador_visitas = models.PositiveIntegerField(default=0)
+    ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
 
     seccion1 = models.CharField(
     max_length=100,
@@ -201,7 +215,7 @@ class Noticia(models.Model):
 
     seccion4 = models.CharField(
         max_length=100,
-        choices=[('Cultura', 'Cultura')],
+        choices=[('Cultura y sociedad', 'Cultura y sociedad')],
         blank=True,
         null=True
     )
@@ -322,6 +336,38 @@ class Noticia(models.Model):
                 image_urls.append(image_field)
         return image_urls
 
+    def get_conteo_reacciones(self):
+        return {
+            'interesa': self.reacciones.filter(tipo_reaccion='interesa').count(),
+            'divierte': self.reacciones.filter(tipo_reaccion='divierte').count(),
+            'entristece': self.reacciones.filter(tipo_reaccion='entristece').count(),
+            'enoja': self.reacciones.filter(tipo_reaccion='enoja').count(),
+        }
+
+    def incrementar_visitas(self, ip_address=None):
+        # Verifica si han pasado 24 horas desde la última actualización
+        if timezone.now() - self.ultima_actualizacion_contador > timedelta(hours=24):
+            self.contador_visitas = 0
+            self.ultima_actualizacion_contador = timezone.now()
+            self.save()
+
+        # Registra la visita
+        NoticiaVisita.objects.create(
+            noticia=self,
+            ip_address=ip_address
+        )
+        
+        # Incrementa el contador
+        self.contador_visitas += 1
+        self.save()
+
+    @property
+    def visitas_ultimas_24h(self):
+        hace_24h = timezone.now() - timedelta(hours=24)
+        return self.visitas.filter(fecha__gte=hace_24h).count()
+
+    class Meta:
+        ordering = ['-contador_visitas']  # Ordena por defecto por número de visitas
 
 
 class Comentario(models.Model):
@@ -406,8 +452,25 @@ class Publicidad(models.Model):
     def __str__(self):
         return f'{self.tipo_anuncio} - {self.fecha_inicio} a {self.fecha_fin}'
 
+# models.py
 from django.db import models
+from django.contrib.auth.models import User
 
+class ReaccionNoticia(models.Model):
+    TIPOS_REACCION = [
+        ('interesa', 'Me interesa'),
+        ('divierte', 'Me divierte'),
+        ('entristece', 'Me entristece'),
+        ('enoja', 'Me enoja'),
+    ]
+    
+    noticia = models.ForeignKey('Noticia', on_delete=models.CASCADE, related_name='reacciones')
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    tipo_reaccion = models.CharField(max_length=20, choices=TIPOS_REACCION)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['noticia', 'usuario']  # Un usuario solo puede tener una reacción por noticia
 
 
 

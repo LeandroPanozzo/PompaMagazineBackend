@@ -167,6 +167,8 @@ class NoticiaSerializer(serializers.ModelSerializer):
     editor_en_jefe = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all())
     estado = serializers.PrimaryKeyRelatedField(queryset=EstadoPublicacion.objects.all())
     
+    visitas_24h = serializers.IntegerField(source='visitas_ultimas_24h', read_only=True)
+    
     imagen_cabecera = serializers.CharField(allow_blank=True, required=False)
     imagen_1 = serializers.CharField(allow_blank=True, required=False)
     imagen_2 = serializers.CharField(allow_blank=True, required=False)
@@ -182,7 +184,10 @@ class NoticiaSerializer(serializers.ModelSerializer):
     seccion4 = serializers.CharField(allow_blank=True, required=False)
     seccion5 = serializers.CharField(allow_blank=True, required=False)
     seccion6 = serializers.CharField(allow_blank=True, required=False)
+    conteo_reacciones = serializers.SerializerMethodField()
 
+    def get_conteo_reacciones(self, obj):
+        return obj.get_conteo_reacciones()
     class Meta:
         model = Noticia
         fields = [
@@ -190,7 +195,8 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'seccion1', 'seccion2','seccion3','seccion4','seccion5','seccion6',  # Reemplaza 'seccion' por secciones específicas si es necesario
             'tags', 'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
             'imagen_4', 'imagen_5', 'imagen_6', 'estado', 
-            'solo_para_subscriptores', 'contenido', 'tiene_comentarios'
+            'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'conteo_reacciones','contador_visitas',
+            'visitas_24h'
         ]
 
     def create(self, validated_data):
@@ -247,5 +253,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
         return instance
 
 
+from .models import ReaccionNoticia
 
+class ReaccionNoticiaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReaccionNoticia
+        fields = ['id', 'tipo_reaccion', 'fecha_creacion']
+        read_only_fields = ['usuario']
 
