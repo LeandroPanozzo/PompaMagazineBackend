@@ -233,7 +233,7 @@ class Noticia(models.Model):
         blank=True,
         null=True
     )
-    tags = models.CharField(max_length=200)
+    Palabras_clave = models.CharField(max_length=200)
 
     # Campo para la URL o imagen local
     imagen_cabecera = models.URLField(blank=True, null=True)

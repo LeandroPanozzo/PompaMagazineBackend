@@ -193,7 +193,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'autor', 'editor_en_jefe', 'nombre_noticia', 'subtitulo', 'fecha_publicacion', 
             'seccion1', 'seccion2','seccion3','seccion4','seccion5','seccion6',  # Reemplaza 'seccion' por secciones específicas si es necesario
-            'tags', 'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
+            'Palabras_clave', 'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
             'imagen_4', 'imagen_5', 'imagen_6', 'estado', 
             'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'conteo_reacciones','contador_visitas',
             'visitas_24h'
@@ -237,7 +237,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Asegúrate de procesar el campo `subtitulo`
         for field in ['nombre_noticia', 'fecha_publicacion', 'seccion1', 'seccion2', 'seccion3', 'seccion4', 'seccion5', 'seccion6',
-                  'tags', 'subtitulo', 'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'estado', 
+                  'Palabras_clave', 'subtitulo', 'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'estado', 
                   'autor', 'editor_en_jefe']:
             if field in validated_data:
                 setattr(instance, field, validated_data.get(field, getattr(instance, field)))
