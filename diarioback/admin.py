@@ -129,31 +129,73 @@ class NoticiaAdmin(admin.ModelAdmin):
         'autor_link', 
         'editor_en_jefe_link',  
         'fecha_publicacion', 
-        'seccion1',  # Aquí reflejamos la nueva estructura de secciones
-        'seccion2',
-        'seccion3',
-        'seccion4',
-        'seccion5',
-        'seccion6',    # Puedes agregar más secciones si es necesario
+        'display_categorias',  # Change this line
         'solo_para_subscriptores', 
         'estado', 
+        'contador_visitas',
+        'visitas_ultimas_24h',
         'icono_comentarios'
     )
     
-    # Agrega las secciones a los filtros
-    list_filter = ('autor', 'fecha_publicacion', 'seccion1', 'seccion2','seccion3','seccion4','seccion5','seccion6', 'solo_para_subscriptores', 'estado')
+    list_filter = (
+        'autor', 
+        'fecha_publicacion', 
+        'solo_para_subscriptores', 
+        'estado'
+    )
+
+    def display_categorias(self, obj):
+        return obj.categorias
+    display_categorias.short_description = 'Categorías'
     
-    search_fields = ('nombre_noticia', 'tags')
+    search_fields = ('nombre_noticia', 'Palabras_clave')
     date_hierarchy = 'fecha_publicacion'
     
-    # Ajusta los campos que aparecerán en el formulario de administración
-    fields = (
-        'nombre_noticia', 'autor', 'editor_en_jefe', 'fecha_publicacion', 
-        'seccion1', 'seccion2','seccion3','seccion4','seccion5','seccion6',  # Reflejar la nueva estructura aquí
-        'tags', 'contenido', 'solo_para_subscriptores', 'estado'
+    fieldsets = (
+        ('Información Principal', {
+            'fields': (
+                'nombre_noticia', 
+                'subtitulo', 
+                'contenido', 
+                'Palabras_clave'
+            )
+        }),
+        ('Metadatos', {
+            'fields': (
+                'autor', 
+                'editor_en_jefe', 
+                'fecha_publicacion', 
+                'categoria', 
+                'estado'
+            )
+        }),
+        ('Imágenes', {
+            'fields': (
+                'imagen_cabecera', 
+                'imagen_1', 
+                'imagen_2', 
+                'imagen_3', 
+                'imagen_4', 
+                'imagen_5', 
+                'imagen_6'
+            )
+        }),
+        ('Opciones Avanzadas', {
+            'fields': (
+                'solo_para_subscriptores', 
+                'tiene_comentarios', 
+                'url'
+            )
+        })
     )
     
+    readonly_fields = ('url', 'contador_visitas', 'visitas_ultimas_24h')
+    
     inlines = [ComentarioInline]
+
+    def visitas_ultimas_24h(self, obj):
+        return obj.visitas_ultimas_24h
+    visitas_ultimas_24h.short_description = 'Visitas (24h)'
 
     def editor_en_jefe_link(self, obj):
         if obj.editor_en_jefe:

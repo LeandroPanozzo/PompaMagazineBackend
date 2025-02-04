@@ -173,15 +173,74 @@ class NoticiaVisita(models.Model):
 from django.utils.text import slugify
 
 class Noticia(models.Model):
-    SECCIONES_PREDEFINIDAS = [
-        ('Portada', 'Portada'),
-        ('Política', 'Política'),
-        ('Economía', 'Economía'),
-        ('Cultura y sociedad', 'Cultura y sociedad'),
-        ('Mundo', 'Mundo'),
-        ('Deportes', 'Deportes'),
+    CATEGORIAS = [
+        ('Portada', 'portada'),
+        ('Politica', (
+            ('legislativos', 'Legislativos'),
+            ('judiciales', 'Judiciales'),
+            ('conurbano', 'Conurbano'),
+            ('provincias', 'Provincias'),
+            ('municipios', 'Municipios'),
+            ('protestas', 'Protestas')
+        )),
+        ('Cultura', (
+            ('cine', 'Cine'),
+            ('literatura', 'Literatura'),
+            ('moda', 'Moda'),
+            ('tecnologia', 'Tecnologia'),
+            ('eventos', 'Eventos')
+        )),
+        ('Economia', (
+            ('finanzas', 'Finanzas'),
+            ('negocios', 'Negocios'),
+            ('empresas', 'Empresas'),
+            ('dolar', 'Dolar')
+        )),
+        ('Mundo', (
+            ('argentina', 'Argentina'),
+            ('china', 'China'),
+            ('estados_unidos', 'Estados Unidos'),
+            ('brasil', 'Brasil'),
+            ('america', 'America'),
+            ('latinoamerica', 'Latinoamerica'),
+            ('asia', 'Asia'),
+            ('africa', 'Africa'),
+            ('oceania', 'Oceania'),
+            ('antartica', 'Antartica'),
+            ('internacional', 'Internacional'),
+            ('seguridad', 'Seguridad'),
+            ('comercio', 'Comercio'),
+            ('guerra', 'Guerra'),
+        ))
     ]
 
+    # Fixed flattening of categories
+    FLAT_CATEGORIAS = []
+    for category in CATEGORIAS:
+        if isinstance(category[1], tuple):
+            FLAT_CATEGORIAS.extend(subcat[0] for subcat in category[1])
+        else:
+            FLAT_CATEGORIAS.append(category[0])
+    # Helper method to validate categories
+    def validate_categorias(value):
+        """Standalone validator function for categorias field"""
+        if not value:
+            return ''
+        categories = value.split(',')
+        categories = [cat.strip() for cat in categories if cat.strip()]
+        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS]
+        if invalid_cats:
+            raise ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
+        return ','.join(categories)
+
+    # Add the categorias field with the fixed validator
+    categorias = models.TextField(
+        validators=[validate_categorias],
+        blank=True,
+        null=True
+    )
+
+    # Other fields...
     autor = models.ForeignKey('Trabajador', on_delete=models.CASCADE, related_name='noticias', null=False)
     editor_en_jefe = models.ForeignKey('Trabajador', on_delete=models.SET_NULL, null=True, related_name='noticias_supervisadas')
     nombre_noticia = models.CharField(max_length=255)
@@ -190,56 +249,9 @@ class Noticia(models.Model):
     slug = models.SlugField(unique=True, blank=True, editable=False)
     contador_visitas = models.PositiveIntegerField(default=0)
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
-
-    seccion1 = models.CharField(
-    max_length=100,
-    choices=[('Portada', 'Portada')],
-    default='Portada',
-    blank=True,  # Permitir que esté vacío
-    null=True    # Permitir que sea nulo
-    )
-
-    seccion2 = models.CharField(
-        max_length=100,
-        choices=[('Política', 'Política')],
-        blank=True,  # Permitir que esté vacío
-        null=True    # Permitir que sea nulo
-    )
-
-    seccion3 = models.CharField(
-        max_length=100,
-        choices=[('Economía', 'Economía')],
-        blank=True,  # Permitir que esté vacío
-        null=True    # Permitir que sea nulo
-    )
-
-    seccion4 = models.CharField(
-        max_length=100,
-        choices=[('Cultura y sociedad', 'Cultura y sociedad')],
-        blank=True,
-        null=True
-    )
-
-    seccion5 = models.CharField(
-        max_length=100,
-        choices=[('Mundo', 'Mundo')],
-        blank=True,
-        null=True
-    )
-
-    seccion6 = models.CharField(
-        max_length=100,
-        choices=[('Deportes', 'Deportes')],
-        blank=True,
-        null=True
-    )
     Palabras_clave = models.CharField(max_length=200)
-
-    # Campo para la URL o imagen local
     imagen_cabecera = models.URLField(blank=True, null=True)
     imagen_local = models.ImageField(upload_to='images/', blank=True, null=True)
-
-    # Campos para imágenes adicionales (tanto locales como URLs)
     imagen_1 = models.URLField(blank=True, null=True)
     imagen_1_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_2 = models.URLField(blank=True, null=True)
@@ -252,58 +264,61 @@ class Noticia(models.Model):
     imagen_5_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_6 = models.URLField(blank=True, null=True)
     imagen_6_local = models.ImageField(upload_to='images/', blank=True, null=True)
-
     estado = models.ForeignKey('EstadoPublicacion', on_delete=models.SET_NULL, null=True)
     solo_para_subscriptores = models.BooleanField(default=False)
     contenido = models.TextField(default='default content')
-    subtitulo = models.TextField(default='default content')  # Nuevo campo subtitulo
+    subtitulo = models.TextField(default='default content')
     tiene_comentarios = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
-        # Obtener la instancia anterior si existe
+        # Validate categorias before saving
+        if self.categorias:
+            self.categorias = Noticia.validate_categorias(self.categorias)
+        
+        # Debug log to verify categorias
+        print(f"Saving categorias: {self.categorias}")
+
+        # Handle slug creation
+        if not self.slug:
+            self.slug = slugify(self.nombre_noticia)
+            original_slug = self.slug
+            count = 1
+            while Noticia.objects.filter(slug=self.slug).exists():
+                self.slug = f"{original_slug}-{count}"
+                count += 1
+
+        # Get the old instance if it exists
         old_instance = None
-        if self.pk:  # Solo si ya existe una instancia guardada previamente
+        if self.pk:  # Only if the instance already exists
             try:
                 old_instance = Noticia.objects.get(pk=self.pk)
             except Noticia.DoesNotExist:
                 pass
 
-        # Crear el slug si no existe
-        if not self.slug:
-            self.slug = slugify(self.nombre_noticia)
-        original_slug = self.slug
-        count = 1
-        while Noticia.objects.filter(slug=self.slug).exists():
-            self.slug = f"{original_slug}-{count}"
-            count += 1
-
-        # Llamar a la versión original del método `save`
+        # Call the original save method
         super().save(*args, **kwargs)
 
-        # Manejar las imágenes (locales o URLs)
+        # Handle image uploads (if needed)
         def handle_image(field_name, image_local_field_name):
             image_local_field = getattr(self, image_local_field_name)
             image_url_field = getattr(self, field_name)
 
-            # Si es una imagen local, subir a Imgur
             if image_local_field:
                 uploaded_image_url = upload_to_imgur(image_local_field.path)
                 setattr(self, field_name, uploaded_image_url)
             elif image_url_field:
-                # Si hay una URL proporcionada, la usamos
                 setattr(self, field_name, image_url_field)
             else:
-                # Si no hay imagen ni URL, dejamos el campo en blanco
                 setattr(self, field_name, None)
 
-        # Procesar la imagen de cabecera
+        # Process header image
         handle_image('imagen_cabecera', 'imagen_local')
 
-        # Procesar las imágenes adicionales (1-6)
+        # Process additional images (1-6)
         for i in range(1, 7):
             handle_image(f'imagen_{i}', f'imagen_{i}_local')
 
-        # Eliminar imágenes anteriores de Imgur si se reemplazan
+        # Delete old images from Imgur if they are replaced
         if old_instance:
             def delete_old_image(field_name):
                 old_image_url = getattr(old_instance, field_name)
@@ -311,13 +326,18 @@ class Noticia(models.Model):
                 if old_image_url and old_image_url != new_image_url:
                     delete_from_imgur(old_image_url)
 
-            # Verificar y eliminar imágenes anteriores si se reemplazan
+            # Verify and delete old images if they are replaced
             delete_old_image('imagen_cabecera')
             for i in range(1, 7):
                 delete_old_image(f'imagen_{i}')
 
-        # Guardar nuevamente para actualizar las URLs después de subir las imágenes
+        # Save again to update image URLs
         super().save(*args, **kwargs)
+    def get_categorias(self):
+        return self.categorias.split(',') if self.categorias else []
+
+    def __str__(self):
+        return f'{self.nombre_noticia} - {self.categorias}'
 
     def __str__(self):
         return f'{self.nombre_noticia} - {self.estado}'
@@ -369,7 +389,18 @@ class Noticia(models.Model):
     class Meta:
         ordering = ['-contador_visitas']  # Ordena por defecto por número de visitas
 
+    @staticmethod
+    def validate_categorias(value):
+        """Standalone validator function for categorias field"""
+        if not value:
+            return []
+        categories = value.split(',')
+        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS]
+        if invalid_cats:
+            raise ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
+        return value
 
+    
 class Comentario(models.Model):
     noticia = models.ForeignKey(Noticia, on_delete=models.CASCADE, related_name='comentarios')
     autor = models.ForeignKey(User, on_delete=models.CASCADE, null=True)

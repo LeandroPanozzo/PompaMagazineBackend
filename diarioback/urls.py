@@ -55,6 +55,6 @@ urlpatterns = [
     path('noticias/<int:id>/reacciones/', views.reacciones_noticia, name='reacciones_noticia'),
     path('noticias/<int:id>/mi-reaccion/', views.mi_reaccion, name='mi_reaccion'),
     path('diarioback/noticias/mas-vistas/', views.NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
-
+    
 ]
 

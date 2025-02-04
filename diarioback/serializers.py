@@ -164,11 +164,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class NoticiaSerializer(serializers.ModelSerializer):
     autor = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all())
-    editor_en_jefe = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all())
+    editor_en_jefe = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all(), required=False, allow_null=True)
     estado = serializers.PrimaryKeyRelatedField(queryset=EstadoPublicacion.objects.all())
-    
+    # Cambio principal: categorias como campo personalizado
+     # Define categorias as a string field that will be validated against allowed categories
+    categorias = serializers.CharField(
+        required=False, 
+        allow_blank=True,
+        allow_null=True
+    )
     visitas_24h = serializers.IntegerField(source='visitas_ultimas_24h', read_only=True)
-    
+    conteo_reacciones = serializers.SerializerMethodField()
+
     imagen_cabecera = serializers.CharField(allow_blank=True, required=False)
     imagen_1 = serializers.CharField(allow_blank=True, required=False)
     imagen_2 = serializers.CharField(allow_blank=True, required=False)
@@ -177,41 +184,20 @@ class NoticiaSerializer(serializers.ModelSerializer):
     imagen_5 = serializers.CharField(allow_blank=True, required=False)
     imagen_6 = serializers.CharField(allow_blank=True, required=False)
 
-    # Secciones: Permitir que sean opcionales y en blanco
-    seccion1 = serializers.CharField(allow_blank=True, required=False)
-    seccion2 = serializers.CharField(allow_blank=True, required=False)
-    seccion3 = serializers.CharField(allow_blank=True, required=False)
-    seccion4 = serializers.CharField(allow_blank=True, required=False)
-    seccion5 = serializers.CharField(allow_blank=True, required=False)
-    seccion6 = serializers.CharField(allow_blank=True, required=False)
-    conteo_reacciones = serializers.SerializerMethodField()
-
-    def get_conteo_reacciones(self, obj):
-        return obj.get_conteo_reacciones()
     class Meta:
         model = Noticia
         fields = [
-            'id', 'autor', 'editor_en_jefe', 'nombre_noticia', 'subtitulo', 'fecha_publicacion', 
-            'seccion1', 'seccion2','seccion3','seccion4','seccion5','seccion6',  # Reemplaza 'seccion' por secciones específicas si es necesario
-            'Palabras_clave', 'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
-            'imagen_4', 'imagen_5', 'imagen_6', 'estado', 
-            'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'conteo_reacciones','contador_visitas',
-            'visitas_24h'
+            'id', 'autor', 'editor_en_jefe', 'nombre_noticia', 'subtitulo', 
+            'fecha_publicacion', 'categorias', 'Palabras_clave', 
+            'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
+            'imagen_4', 'imagen_5', 'imagen_6', 
+            'estado', 'solo_para_subscriptores', 
+            'contenido', 'tiene_comentarios', 
+            'conteo_reacciones', 'contador_visitas','visitas_24h'
         ]
 
-    def create(self, validated_data):
-        # Asegúrate de que no se incluye un id
-        validated_data.pop('id', None)  # Eliminar id si está presente
-
-        # Crear la noticia
-        noticia = Noticia.objects.create(**validated_data)
-        
-        # Generar la URL
-        noticia.url = f"/noticia/{noticia.id}/{noticia.nombre_noticia.replace(' ', '-').lower()}/"
-        noticia.save()  # Guardar la URL en la base de datos
-
-        return noticia
-
+    def get_conteo_reacciones(self, obj):
+        return obj.get_conteo_reacciones()
 
     def get_imagen_cabecera(self, obj):
         return obj.imagen_cabecera
@@ -234,25 +220,83 @@ class NoticiaSerializer(serializers.ModelSerializer):
     def get_imagen_6(self, obj):
         return obj.imagen_6
 
+    def create(self, validated_data):
+        # Ensure ID is not in the data
+        validated_data.pop('id', None)
+        # Debug log to verify validated data
+        print("Validated Data in create:", validated_data)
+
+        # Ensure categorias is properly formatted
+        categorias = validated_data.get('categorias', '')
+        if categorias and isinstance(categorias, list):
+            validated_data['categorias'] = ','.join(categorias)
+        elif not categorias:
+            validated_data['categorias'] = ''
+
+        # Create the Noticia instance
+        noticia = Noticia.objects.create(**validated_data)
+
+        # Generate URL for the new Noticia
+        noticia.url = f"/noticia/{noticia.id}/{noticia.nombre_noticia.replace(' ', '-').lower()}/"
+        noticia.save()
+
+        # Debug log to verify the created instance
+        print("Created Noticia:", noticia)
+        return noticia
+    def to_internal_value(self, data):
+        if 'categorias' in data and isinstance(data['categorias'], list):
+            data['categorias'] = ','.join(data['categorias'])
+        return super().to_internal_value(data)
+
+    def validate_categorias(self, value):
+        if not value:
+            return ''
+        categories = value.split(',')
+        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS]
+        if invalid_cats:
+            raise serializers.ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
+        return value
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['categorias'] = instance.get_categorias()
+        return ret
+
     def update(self, instance, validated_data):
-        # Asegúrate de procesar el campo `subtitulo`
-        for field in ['nombre_noticia', 'fecha_publicacion', 'seccion1', 'seccion2', 'seccion3', 'seccion4', 'seccion5', 'seccion6',
-                  'Palabras_clave', 'subtitulo', 'solo_para_subscriptores', 'contenido', 'tiene_comentarios', 'estado', 
-                  'autor', 'editor_en_jefe']:
+        # Debug log to verify validated data
+        print("Validated Data in update:", validated_data)
+
+        # Ensure categorias is properly formatted
+        categorias = validated_data.get('categorias', '')
+        if categorias and isinstance(categorias, list):
+            validated_data['categorias'] = ','.join(categorias)
+        elif not categorias:
+            validated_data['categorias'] = instance.categorias
+
+        # Update fields
+        fields_to_update = [
+            'nombre_noticia', 'fecha_publicacion', 'categorias', 
+            'Palabras_clave', 'subtitulo', 'solo_para_subscriptores', 
+            'contenido', 'tiene_comentarios', 'estado', 
+            'autor', 'editor_en_jefe'
+        ]
+        for field in fields_to_update:
             if field in validated_data:
                 setattr(instance, field, validated_data.get(field, getattr(instance, field)))
-        
-        # Lógica de manejo de imágenes
+
+        # Handle image updates
         for i in range(7):  # 0 for imagen_cabecera, 1-6 for imagen_1 to imagen_6
             field_name = f'imagen_{i}' if i > 0 else 'imagen_cabecera'
             image_url = validated_data.get(field_name)
             if image_url:
                 setattr(instance, field_name, image_url)
-        
+
+        # Save the updated instance
         instance.save()
+
+        # Debug log to verify the updated instance
+        print("Updated Noticia:", instance)
         return instance
-
-
 from .models import ReaccionNoticia
 
 class ReaccionNoticiaSerializer(serializers.ModelSerializer):

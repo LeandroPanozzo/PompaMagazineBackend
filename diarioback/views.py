@@ -128,6 +128,17 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(noticias_mas_vistas, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'])
+    def por_categoria(self, request):
+        categoria = request.query_params.get('categoria')
+        queryset = self.get_queryset()
+        
+        if categoria:
+            # Busca noticias donde la categoría esté en la lista de categorías
+            queryset = queryset.filter(categorias__contains=categoria)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
     @action(detail=False, methods=['post'])
     def upload_image(self, request):
         if 'image' not in request.FILES:
