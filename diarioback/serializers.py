@@ -124,16 +124,18 @@ class TrabajadorSerializer(serializers.ModelSerializer):
 
         instance.save()  # Guarda los cambios en la instancia Trabajador
         return instance
+        
 
 from django.conf import settings
 class UserProfileSerializer(serializers.ModelSerializer):
     foto_perfil_local = serializers.ImageField(write_only=True, required=False)
     foto_perfil = serializers.CharField(required=False, allow_blank=True)
-    descripcion_usuario = serializers.CharField(required=False, allow_blank=True)  # Nuevo campo añadido
+    descripcion_usuario = serializers.CharField(required=False, allow_blank=True)
+    es_trabajador = serializers.BooleanField(read_only=True)
 
     class Meta:
-        model = UserProfile  # Cambié Trabajador por UserProfile
-        fields = ['id', 'nombre', 'apellido', 'foto_perfil', 'foto_perfil_local', 'descripcion_usuario']  # Añadido descripcion_usuario
+        model = UserProfile
+        fields = ['id', 'nombre', 'apellido', 'foto_perfil', 'foto_perfil_local', 'descripcion_usuario', 'es_trabajador']
 
     def validate_foto_perfil(self, value):
         if value.startswith(settings.MEDIA_URL):

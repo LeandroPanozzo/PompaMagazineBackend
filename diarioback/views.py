@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate
 from .serializers import UserProfileSerializer, UserRegistrationSerializer, LoginSerializer
 from django.core.files.storage import default_storage
 import uuid
@@ -20,6 +21,7 @@ from django.contrib.auth.models import User
 from .serializers import UserSerializer
 from django.utils import timezone  # Añade esta importación
 from datetime import timedelta     # Añade esta importación
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .serializers import (
     RolSerializer, TrabajadorSerializer, UsuarioSerializer, NoticiaSerializer,
@@ -152,92 +154,138 @@ User = get_user_model()
 
 # Vista para el registro de usuarios
 class RegisterView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            # Verificar si el usuario registrado es un trabajador
-            try:
-                trabajador = Trabajador.objects.get(user=user)
-                return Response({
-                    'message': 'User registered successfully',
-                    'user': UserRegistrationSerializer(user).data,
-                    'trabajador_id': trabajador.id  # Añadir ID del trabajador
-                }, status=status.HTTP_201_CREATED)
-            except Trabajador.DoesNotExist:
-                return Response({
-                    'message': 'User registered successfully, but is not a worker.',
-                    'user': UserRegistrationSerializer(user).data
-                }, status=status.HTTP_201_CREATED)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 def redirect_to_home(request):
     return redirect('/home/')
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         user = self.request.user
-        if user.is_authenticated:  # Verificar que el usuario esté autenticado
-            try:
-                return Trabajador.objects.get(user=user)
-            except Trabajador.DoesNotExist:
-                raise NotFound("Perfil de trabajador no encontrado.")
-        else:
+        if not user.is_authenticated:
             raise PermissionDenied("Usuario no autenticado.")
+        
+        # Intentar obtener el perfil del usuario
+        try:
+            # Primero buscamos en UserProfile
+            return UserProfile.objects.get(user=user)
+        except UserProfile.DoesNotExist:
+            # Si no existe, verificamos si es un trabajador
+            try:
+                trabajador = Trabajador.objects.get(user=user)
+                # Si es un trabajador, creamos un UserProfile asociado
+                profile = UserProfile.objects.create(
+                    user=user,
+                    nombre=trabajador.nombre,
+                    apellido=trabajador.apellido,
+                    foto_perfil=trabajador.foto_perfil,
+                    descripcion_usuario=trabajador.descripcion_usuario,
+                    es_trabajador=True
+                )
+                return profile
+            except Trabajador.DoesNotExist:
+                # Si no es un trabajador, creamos un perfil vacío
+                profile = UserProfile.objects.create(
+                    user=user,
+                    nombre=user.first_name,
+                    apellido=user.last_name,
+                    es_trabajador=False
+                )
+                return profile
 
     def get(self, request, *args, **kwargs):
-        try:
-            trabajador = self.get_object()
-            return Response({
-                'trabajador': True,
-                'id': trabajador.id,
-                'nombre': trabajador.nombre,
-                'apellido': trabajador.apellido,
-                'foto_perfil': trabajador.foto_perfil,  # Incluye la foto de perfil si es necesario
-                'descripcion_usuario': trabajador.descripcion_usuario,  # Nuevo campo añadido en la respuesta
-            }, status=status.HTTP_200_OK)
-        except NotFound as e:
-            return Response({'detail': str(e)}, status=status.HTTP_404_NOT_FOUND)
+        profile = self.get_object()
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
-        trabajador = self.get_object()
-        serializer = self.get_serializer(trabajador, data=request.data, partial=True)
+        profile = self.get_object()
+        serializer = self.get_serializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 # Vista para el inicio de sesión de usuarios
 class LoginView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            refresh = RefreshToken.for_user(user)
+        # Add debugging to see what's being received
+        print(f"Login attempt with data: {request.data}")
+        
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        if not username or not password:
+            return Response({'error': 'Please provide both username and password'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        # Authenticate user
+        user = authenticate(username=username, password=password)
+        
+        if user is None:
+            return Response({'error': 'Invalid credentials'}, 
+                            status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Check if user is a worker (Trabajador)
+        try:
+            from .models import Trabajador
+            trabajador = Trabajador.objects.get(user=user)
+            from .serializers import TrabajadorSerializer
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'trabajador': TrabajadorSerializer(trabajador).data
+            })
+        except Exception as e:
+            # Regular user or error occurred
+            print(f"Error fetching trabajador: {e}")
+            from .serializers import UserSerializer
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+                'user': UserSerializer(user).data
+            })
 
-            # Verificar si el usuario es un trabajador
-            try:
-                trabajador = Trabajador.objects.get(user=user)
-                return Response({
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                    'trabajador_id': trabajador.id  # Incluir el ID del trabajador
-                })
-            except Trabajador.DoesNotExist:
-                return Response({
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                    'trabajador_id': None  # No es un trabajador
-                })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Check if user is a worker
+        try:
+            trabajador = Trabajador.objects.get(user=user)
+            return Response({
+                'isWorker': True,
+                **TrabajadorSerializer(trabajador).data
+            })
+        except Trabajador.DoesNotExist:
+            # Regular user
+            return Response({
+                'isWorker': False,
+                **UserSerializer(user).data
+            })
 
 class AdminViewSet(viewsets.ModelViewSet):
     queryset = BASE_QUERYSET.filter(is_staff=True)

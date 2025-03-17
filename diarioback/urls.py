@@ -13,6 +13,7 @@ from .views import (
     AdminViewSet,
     UserrViewSet, 
     redirect_to_home,  # Importa la vista de redirección
+    CurrentUserView, 
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -55,6 +56,7 @@ urlpatterns = [
     path('noticias/<int:id>/reacciones/', views.reacciones_noticia, name='reacciones_noticia'),
     path('noticias/<int:id>/mi-reaccion/', views.mi_reaccion, name='mi_reaccion'),
     path('diarioback/noticias/mas-vistas/', views.NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
-    
+    path('current-user/', CurrentUserView.as_view(), name='current-user'),
+
 ]
 

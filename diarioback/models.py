@@ -31,10 +31,12 @@ import os
 
 
 class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', null=True, blank=True)  # Cambio aquí
     nombre = models.CharField(max_length=255)
     apellido = models.CharField(max_length=255)
     foto_perfil = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     descripcion_usuario = models.TextField(blank=True, null=True)
+    es_trabajador = models.BooleanField(default=False)
 
 class Trabajador(models.Model):
     DEFAULT_FOTO_PERFIL_URL = 'https://example.com/default-profile.png'
