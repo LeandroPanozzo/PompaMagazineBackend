@@ -199,20 +199,11 @@ class Noticia(models.Model):
             ('dolar', 'Dolar')
         )),
         ('Mundo', (
-            ('argentina', 'Argentina'),
-            ('china', 'China'),
+            ('politica_exterior', 'Politica Exterior'),
             ('estados_unidos', 'Estados Unidos'),
-            ('brasil', 'Brasil'),
-            ('america', 'America'),
-            ('latinoamerica', 'Latinoamerica'),
             ('asia', 'Asia'),
-            ('africa', 'Africa'),
-            ('oceania', 'Oceania'),
-            ('antartica', 'Antartica'),
+            ('medio_oriente', 'Medio Oriente'),
             ('internacional', 'Internacional'),
-            ('seguridad', 'Seguridad'),
-            ('comercio', 'Comercio'),
-            ('guerra', 'Guerra'),
         ))
     ]
 
