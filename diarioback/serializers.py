@@ -28,6 +28,16 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         return user
+    def validate_email(self, value):
+        # Verifica si el email ya existe en User
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Ya existe una cuenta con este correo electrónico.")
+        
+        # Verifica si el email ya existe en Trabajador
+        if Trabajador.objects.filter(correo=value).exists():
+            raise serializers.ValidationError("Ya existe un trabajador con este correo electrónico.")
+            
+        return value
 
 # Serializador para el inicio de sesión de usuarios
 class LoginSerializer(serializers.Serializer):
