@@ -496,5 +496,44 @@ class ReaccionNoticia(models.Model):
     class Meta:
         unique_together = ['noticia', 'usuario']  # Un usuario solo puede tener una reacción por noticia
 
+# models.py
+from django.db import models
+from django.contrib.auth.models import User
+import random
+import string
+from django.utils import timezone
+from datetime import timedelta
 
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.CharField(max_length=6, editable=False, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        # Generar token simple si no existe
+        if not self.token:
+            self.token = self.generate_token()
+        
+        # El token expira después de 24 horas
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=24)
+            
+        super().save(*args, **kwargs)
+    
+    def is_valid(self):
+        return not self.used and timezone.now() <= self.expires_at
+    
+    @staticmethod
+    def generate_token():
+        # Generar token numérico de 6 dígitos
+        digits = string.digits
+        token = ''.join(random.choice(digits) for _ in range(6))
+        
+        # Verificar que no exista ya
+        while PasswordResetToken.objects.filter(token=token).exists():
+            token = ''.join(random.choice(digits) for _ in range(6))
+            
+        return token
 

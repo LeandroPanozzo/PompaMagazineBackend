@@ -317,3 +317,45 @@ class ReaccionNoticiaSerializer(serializers.ModelSerializer):
         fields = ['id', 'tipo_reaccion', 'fecha_creacion']
         read_only_fields = ['usuario']
 
+# serializers.py
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import PasswordResetToken
+
+User = get_user_model()
+
+class RequestPasswordResetSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate_email(self, value):
+        # Verifica si existe un usuario con este email
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("No existe un usuario con este correo electrónico.")
+        return value
+
+class VerifyTokenSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=6)  # Cambiado de UUIDField a CharField
+    
+    def validate_token(self, value):
+        # Verifica si el token existe y es válido
+        token_obj = PasswordResetToken.objects.filter(token=value).first()
+        if not token_obj or not token_obj.is_valid():
+            raise serializers.ValidationError("Token inválido o expirado.")
+        return value
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=6)  # Cambiado de UUIDField a CharField
+    password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate(self, data):
+        # Verifica que las contraseñas coincidan
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError("Las contraseñas no coinciden.")
+        
+        # Verifica si el token existe y es válido
+        token_obj = PasswordResetToken.objects.filter(token=data['token']).first()
+        if not token_obj or not token_obj.is_valid():
+            raise serializers.ValidationError("Token inválido o expirado.")
+        
+        return data

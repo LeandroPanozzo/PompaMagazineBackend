@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
-from .views import ComentarioListCreateAPIView, CommentDeleteView, RegisterView, LoginView, UserProfileView, EstadoPublicacionList, TrabajadorList, upload_image
+from .views import ComentarioListCreateAPIView, CommentDeleteView, RegisterView, LoginView, RequestPasswordResetView, ResetPasswordView, UserProfileView, EstadoPublicacionList, TrabajadorList, VerifyTokenView, upload_image
 from .views import (
     RolViewSet, 
     TrabajadorViewSet, 
@@ -57,6 +57,8 @@ urlpatterns = [
     path('noticias/<int:id>/mi-reaccion/', views.mi_reaccion, name='mi_reaccion'),
     path('diarioback/noticias/mas-vistas/', views.NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
-
+    path('password/reset/request/', RequestPasswordResetView.as_view(), name='password-reset-request'),
+    path('password/reset/verify/', VerifyTokenView.as_view(), name='password-reset-verify'),
+    path('password/reset/confirm/', ResetPasswordView.as_view(), name='password-reset-confirm'),
 ]
 

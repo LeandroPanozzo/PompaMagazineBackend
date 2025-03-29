@@ -474,3 +474,86 @@ def mi_reaccion(request, id):
         return Response(status=status.HTTP_404_NOT_FOUND)
     except ReaccionNoticia.DoesNotExist:
         return Response({'tipo_reaccion': None})
+    
+
+# views.py
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.contrib.auth import get_user_model
+from .models import PasswordResetToken
+from .serializers import RequestPasswordResetSerializer, VerifyTokenSerializer, ResetPasswordSerializer
+from django.core.mail import send_mail
+from django.conf import settings
+
+User = get_user_model()
+
+class RequestPasswordResetView(APIView):
+    def post(self, request):
+        serializer = RequestPasswordResetSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            user = User.objects.get(email=email)
+            
+            # Crear token de recuperación
+            token_obj = PasswordResetToken.objects.create(user=user)
+            
+            # Enviar correo con el token
+            subject = "Recuperación de contraseña"
+            message = f"""
+            Hola {user.username},
+            
+            Recibimos una solicitud para restablecer tu contraseña.
+            
+            Tu código de recuperación es: {token_obj.token}
+            
+            Este código es válido por 24 horas.
+            
+            Si no solicitaste este cambio, puedes ignorar este correo.
+            
+            Saludos,
+            El equipo de [Nombre de tu aplicación]
+            """
+            
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+            
+            return Response({"message": "Se ha enviado un correo con instrucciones para recuperar tu contraseña."}, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class VerifyTokenView(APIView):
+    def post(self, request):
+        serializer = VerifyTokenSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response({"message": "Token válido."}, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ResetPasswordView(APIView):
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            token = serializer.validated_data['token']
+            password = serializer.validated_data['password']
+            
+            # Buscar el token
+            token_obj = PasswordResetToken.objects.get(token=token)
+            
+            # Cambiar la contraseña del usuario
+            user = token_obj.user
+            user.set_password(password)
+            user.save()
+            
+            # Marcar el token como usado
+            token_obj.used = True
+            token_obj.save()
+            
+            return Response({"message": "Contraseña actualizada exitosamente."}, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
