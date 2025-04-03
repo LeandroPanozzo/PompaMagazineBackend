@@ -12,18 +12,8 @@ python manage.py collectstatic --no-input
 python manage.py migrate
 
 # Crear estados de publicación
-python -c "
-from diarioback.models import EstadoPublicacion
-# Create each state
-states = [
-    ('borrador', 'Borrador'),
-    ('en_papelera', 'En Papelera'),
-    ('publicado', 'Publicado'),
-    ('listo_para_editar', 'Listo para editar'),
-]
-for code, name in states:
-    EstadoPublicacion.objects.get_or_create(nombre_estado=code)
-"
+echo "from diarioback.models import EstadoPublicacion; states = [('borrador', 'Borrador'), ('en_papelera', 'En Papelera'), ('publicado', 'Publicado'), ('listo_para_editar', 'Listo para editar')]; [EstadoPublicacion.objects.get_or_create(nombre_estado=code) for code, name in states]" | python manage.py shell
+
 
 #creacion de usuario admin 
 #export DJANGO_SUPERUSER_USERNAME=admin
