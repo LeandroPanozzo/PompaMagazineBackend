@@ -48,28 +48,30 @@ class TrabajadorForm(forms.ModelForm):
         fields = ['nombre', 'apellido', 'rol', 'user', 'foto_perfil', 'foto_perfil_local']
 
     def save(self, *args, **kwargs):
-    # Obtener la instancia anterior si existe
-    old_instance = None
-    if self.pk:  # Solo si ya existe una instancia guardada previamente
-        try:
-            old_instance = Trabajador.objects.get(pk=self.pk)
-        except Trabajador.DoesNotExist:
-            pass
+        # The next lines should be indented
+        # Obtener la instancia anterior si existe
+        old_instance = None
+        if self.pk:  # Solo si ya existe una instancia guardada previamente
+            try:
+                old_instance = Trabajador.objects.get(pk=self.pk)
+            except Trabajador.DoesNotExist:
+                pass
 
-    # Crear un nuevo UserProfile si no existe
-    if not self.user_profile:
-        self.user_profile = UserProfile.objects.create(
-            nombre=self.nombre,
-            apellido=self.apellido,
-            es_trabajador=True  # Set this to True when creating a new UserProfile
-        )
-    else:
-        # Ensure es_trabajador is True for existing profiles
-        if not self.user_profile.es_trabajador:
-            self.user_profile.es_trabajador = True
-            self.user_profile.save()
+        # Crear un nuevo UserProfile si no existe
+        if not self.user_profile:
+            self.user_profile = UserProfile.objects.create(
+                nombre=self.nombre,
+                apellido=self.apellido,
+                es_trabajador=True  # Set this to True when creating a new UserProfile
+            )
+        else:
+            # Ensure es_trabajador is True for existing profiles
+            if not self.user_profile.es_trabajador:
+                self.user_profile.es_trabajador = True
+                self.user_profile.save()
 
-    # Rest of your code...
+        # Rest of your code...
+        return super().save(*args, **kwargs)  # Make sure to return the saved instance
 
 
 @admin.register(Trabajador)
