@@ -47,31 +47,36 @@ class TrabajadorForm(forms.ModelForm):
         model = Trabajador
         fields = ['nombre', 'apellido', 'rol', 'user', 'foto_perfil', 'foto_perfil_local']
 
-    def save(self, *args, **kwargs):
-        # The next lines should be indented
-        # Obtener la instancia anterior si existe
+    def save(self, commit=True):
+        # Get the instance (existing object or new one)
+        instance = super().save(commit=False)
+        
+        # Get the old instance if it exists
         old_instance = None
-        if self.pk:  # Solo si ya existe una instancia guardada previamente
+        if instance.pk:  # Check if the instance has a primary key (meaning it exists in DB)
             try:
-                old_instance = Trabajador.objects.get(pk=self.pk)
+                old_instance = Trabajador.objects.get(pk=instance.pk)
             except Trabajador.DoesNotExist:
                 pass
 
-        # Crear un nuevo UserProfile si no existe
-        if not self.user_profile:
-            self.user_profile = UserProfile.objects.create(
-                nombre=self.nombre,
-                apellido=self.apellido,
+        # Create a new UserProfile if the instance doesn't have one
+        if not instance.user_profile:
+            instance.user_profile = UserProfile.objects.create(
+                nombre=instance.nombre,
+                apellido=instance.apellido,
                 es_trabajador=True  # Set this to True when creating a new UserProfile
             )
         else:
             # Ensure es_trabajador is True for existing profiles
-            if not self.user_profile.es_trabajador:
-                self.user_profile.es_trabajador = True
-                self.user_profile.save()
+            if not instance.user_profile.es_trabajador:
+                instance.user_profile.es_trabajador = True
+                instance.user_profile.save()
 
-        # Rest of your code...
-        return super().save(*args, **kwargs)  # Make sure to return the saved instance
+        # Save the instance if commit is True
+        if commit:
+            instance.save()
+            
+        return instance
 
 
 @admin.register(Trabajador)
