@@ -188,12 +188,12 @@ class NoticiaSerializer(serializers.ModelSerializer):
     visitas_24h = serializers.IntegerField(source='visitas_ultimas_24h', read_only=True)
     conteo_reacciones = serializers.SerializerMethodField()
 
-    imagen_1 = serializers.CharField(allow_blank=True, required=False)
-    imagen_2 = serializers.CharField(allow_blank=True, required=False)
-    imagen_3 = serializers.CharField(allow_blank=True, required=False)
-    imagen_4 = serializers.CharField(allow_blank=True, required=False)
-    imagen_5 = serializers.CharField(allow_blank=True, required=False)
-    imagen_6 = serializers.CharField(allow_blank=True, required=False)
+    imagen_1 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
+    imagen_2 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
+    imagen_3 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
+    imagen_4 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
+    imagen_5 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
+    imagen_6 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
 
     class Meta:
         model = Noticia

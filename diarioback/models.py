@@ -310,19 +310,20 @@ class Noticia(models.Model):
             except Noticia.DoesNotExist:
                 pass
 
-        # Primero guardamos para obtener un ID si es un objeto nuevo
+       # Guarda primero para obtener un ID si es objeto nuevo
         super().save(*args, **kwargs)
-
-        # Procesar las imágenes y subir a Imgur
-        self._process_images(old_instance)
         
-        # Guardar nuevamente con las URLs de Imgur actualizadas
-        super().save(update_fields=[ 'imagen_1', 'imagen_2', 'imagen_3', 
-                                   'imagen_4', 'imagen_5', 'imagen_6'])
+        # Procesar imágenes y subir a Imgur
+        images_updated = self._process_images(old_instance)
+        
+        # Solo guardar nuevamente si se actualizaron las imágenes
+        if images_updated:
+            # Nota: No filtrar los campos de update_fields, guarda todos los cambios
+            super().save()
     
     def _process_images(self, old_instance=None):
         """Procesa todas las imágenes, sube a Imgur y actualiza URLs"""
-        # Procesar imagen de cabecera
+        images_updated = False
         
         # Procesar imágenes adicionales (1-6)
         for i in range(1, 7):
@@ -338,10 +339,16 @@ class Noticia(models.Model):
                     setattr(self, url_field_name, imgur_url)
                     # Limpiar el campo local después de subir
                     setattr(self, local_field_name, None)
+                    images_updated = True
+                    
+                    # Para depuración
+                    print(f"Imagen {i} subida a Imgur: {imgur_url}")
         
         # Eliminar imágenes antiguas de Imgur si fueron reemplazadas
         if old_instance:
             self._delete_old_images(old_instance)
+        
+        return images_updated
     
     def _delete_old_images(self, old_instance):
         """Elimina las imágenes antiguas de Imgur si han sido reemplazadas"""
