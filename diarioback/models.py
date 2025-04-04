@@ -185,38 +185,7 @@ def upload_to_imgur(image):
     return None
 
 def delete_from_imgur(image_url):
-    """
-    Elimina una imagen de Imgur usando su URL
-    
-    Args:
-        image_url (str): URL de la imagen en Imgur
-    
-    Returns:
-        bool: True si la eliminación fue exitosa, False en caso contrario
-    """
-    # Extraer el hash de la imagen desde la URL
-    try:
-        # La URL de Imgur tiene el formato: https://i.imgur.com/HASH.ext
-        image_hash = image_url.split('/')[-1].split('.')[0]
-        
-        headers = {
-            'Authorization': f'Client-ID {IMGUR_CLIENT_ID}'
-        }
-        
-        # Realizar la solicitud DELETE a la API de Imgur
-        delete_url = IMGUR_DELETE_URL.format(hash=image_hash)
-        response = requests.delete(delete_url, headers=headers)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            return response_data.get('success', False)
-        else:
-            print(f"Error HTTP {response.status_code} al eliminar imagen de Imgur")
-            return False
-            
-    except Exception as e:
-        print(f"Excepción al eliminar imagen de Imgur: {str(e)}")
-        return False
+    pass
 
 class NoticiaVisita(models.Model):
     noticia = models.ForeignKey('Noticia', on_delete=models.CASCADE, related_name='visitas')

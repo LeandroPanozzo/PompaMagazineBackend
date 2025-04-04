@@ -339,33 +339,30 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 def upload_image(request):
-    if request.method == 'POST':
-        if 'file' not in request.FILES:
-            return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+    if 'image' not in request.FILES:
+        return Response({'error': 'No image file found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        file = request.FILES['file']
+    image = request.FILES['image']
 
-        if not file.name.endswith(('.png', '.jpg', '.jpeg')):
-            return Response({'error': 'File type not supported. Please upload a PNG or JPG image.'}, status=status.HTTP_400_BAD_REQUEST)
+    # Verificar tipo de archivo
+    if not image.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+        return Response({
+            'error': 'Tipo de archivo no soportado. Por favor suba una imagen PNG, JPG, JPEG o GIF.'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Intenta guardar el archivo y maneja las excepciones
-        try:
-            # Verifica que el directorio existe
-            upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-            os.makedirs(upload_dir, exist_ok=True)
+    # Subir directamente a Imgur
+    uploaded_url = upload_to_imgur(image)
 
-            file_path = os.path.join(upload_dir, file.name)
-            with open(file_path, 'wb+') as destination:
-                for chunk in file.chunks():
-                    destination.write(chunk)
-
-            file_url = os.path.join(settings.MEDIA_URL, 'uploads', file.name)
-            return Response({'url': file_url}, status=status.HTTP_201_CREATED)
-        
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    if uploaded_url:
+        return Response({
+            'success': True, 
+            'url': uploaded_url,
+            'message': 'Imagen subida exitosamente a Imgur'
+        })
+    else:
+        return Response({
+            'error': 'Error al subir la imagen a Imgur'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['PUT'])
 def update_trabajador(request, pk):
