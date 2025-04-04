@@ -194,7 +194,6 @@ class NoticiaAdmin(admin.ModelAdmin):
         }),
         ('Imágenes', {
             'fields': (
-                'imagen_cabecera', 
                 'imagen_1', 
                 'imagen_2', 
                 'imagen_3', 

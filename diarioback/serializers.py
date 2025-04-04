@@ -188,7 +188,6 @@ class NoticiaSerializer(serializers.ModelSerializer):
     visitas_24h = serializers.IntegerField(source='visitas_ultimas_24h', read_only=True)
     conteo_reacciones = serializers.SerializerMethodField()
 
-    imagen_cabecera = serializers.CharField(allow_blank=True, required=False)
     imagen_1 = serializers.CharField(allow_blank=True, required=False)
     imagen_2 = serializers.CharField(allow_blank=True, required=False)
     imagen_3 = serializers.CharField(allow_blank=True, required=False)
@@ -201,7 +200,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'autor', 'editor_en_jefe', 'nombre_noticia', 'subtitulo', 
             'fecha_publicacion', 'categorias', 'Palabras_clave', 
-            'imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
+             'imagen_1', 'imagen_2', 'imagen_3', 
             'imagen_4', 'imagen_5', 'imagen_6', 
             'estado', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 
@@ -211,8 +210,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
     def get_conteo_reacciones(self, obj):
         return obj.get_conteo_reacciones()
 
-    def get_imagen_cabecera(self, obj):
-        return obj.imagen_cabecera
+    
 
     def get_imagen_1(self, obj):
         return obj.imagen_1

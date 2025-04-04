@@ -269,7 +269,6 @@ class Noticia(models.Model):
     contador_visitas = models.PositiveIntegerField(default=0)
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     Palabras_clave = models.CharField(max_length=200)
-    imagen_cabecera = models.URLField(blank=True, null=True)
     imagen_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_1 = models.URLField(blank=True, null=True)
     imagen_1_local = models.ImageField(upload_to='images/', blank=True, null=True)
@@ -303,10 +302,6 @@ class Noticia(models.Model):
                 self.slug = f"{original_slug}-{count}"
                 count += 1
 
-        # Si imagen_1 existe y imagen_cabecera no está definida, usar imagen_1 como cabecera
-        if self.imagen_1 and not self.imagen_cabecera:
-            self.imagen_cabecera = self.imagen_1
-
         # Get the old instance if it exists
         old_instance = None
         if self.pk:  # Only if the instance already exists
@@ -322,20 +317,12 @@ class Noticia(models.Model):
         self._process_images(old_instance)
         
         # Guardar nuevamente con las URLs de Imgur actualizadas
-        super().save(update_fields=['imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
-                                'imagen_4', 'imagen_5', 'imagen_6'])
+        super().save(update_fields=[ 'imagen_1', 'imagen_2', 'imagen_3', 
+                                   'imagen_4', 'imagen_5', 'imagen_6'])
     
     def _process_images(self, old_instance=None):
         """Procesa todas las imágenes, sube a Imgur y actualiza URLs"""
         # Procesar imagen de cabecera
-        if self.imagen_local and hasattr(self.imagen_local, 'file'):
-            # Subir la imagen a Imgur
-            imgur_url = upload_to_imgur(self.imagen_local)
-            if imgur_url:
-                # Si la subida fue exitosa, actualizar la URL
-                self.imagen_cabecera = imgur_url
-                # Limpiar el campo local después de subir
-                self.imagen_local = None
         
         # Procesar imágenes adicionales (1-6)
         for i in range(1, 7):
@@ -358,7 +345,7 @@ class Noticia(models.Model):
     
     def _delete_old_images(self, old_instance):
         """Elimina las imágenes antiguas de Imgur si han sido reemplazadas"""
-        fields_to_check = ['imagen_cabecera'] + [f'imagen_{i}' for i in range(1, 7)]
+        fields_to_check =  [f'imagen_{i}' for i in range(1, 7)]
         
         for field_name in fields_to_check:
             old_url = getattr(old_instance, field_name)
@@ -382,8 +369,7 @@ class Noticia(models.Model):
     def get_image_urls(self):
         """Retorna una lista de todas las URLs de imágenes disponibles."""
         image_urls = []
-        if self.imagen_cabecera:
-            image_urls.append(self.imagen_cabecera)
+       
         for i in range(1, 7):
             image_field = getattr(self, f'imagen_{i}')
             if image_field:
