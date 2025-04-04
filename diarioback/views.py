@@ -142,19 +142,19 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     @action(detail=False, methods=['post'])
-        def upload_image(self, request):
-            if 'image' not in request.FILES:
-                return Response({'error': 'No image file found'}, status=400)
-            
-            image = request.FILES['image']
-            
-            # Use the Imgur upload function instead of local storage
-            uploaded_url = upload_to_imgur(image)
-            
-            if uploaded_url:
-                return Response({'success': True, 'url': uploaded_url})
-            else:
-                return Response({'error': 'Failed to upload image to Imgur'}, status=500)
+    def upload_image(self, request):
+        if 'image' not in request.FILES:
+            return Response({'error': 'No image file found'}, status=400)
+        
+        image = request.FILES['image']
+        
+        # Use the Imgur upload function instead of local storage
+        uploaded_url = upload_to_imgur(image)
+        
+        if uploaded_url:
+            return Response({'success': True, 'url': uploaded_url})
+        else:
+            return Response({'error': 'Failed to upload image to Imgur'}, status=500)
 User = get_user_model()
 
 # Vista para el registro de usuarios
