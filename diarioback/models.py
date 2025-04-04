@@ -296,12 +296,21 @@ class Noticia(models.Model):
             image_local_field = getattr(self, image_local_field_name)
             image_url_field = getattr(self, field_name)
 
-            if image_local_field:
-                uploaded_image_url = upload_to_imgur(image_local_field.path)
+            if image_local_field and hasattr(image_local_field, 'file'):
+                # Si es un archivo recién subido en memoria
+                if hasattr(image_local_field, 'temporary_file_path'):
+                    # Si Django ha creado un archivo temporal
+                    uploaded_image_url = upload_to_imgur(image_local_field.temporary_file_path())
+                else:
+                    # Si está en memoria, pasar directamente el objeto de archivo
+                    uploaded_image_url = upload_to_imgur(image_local_field)
+                
                 setattr(self, field_name, uploaded_image_url)
             elif image_url_field:
+                # Mantener la URL existente
                 setattr(self, field_name, image_url_field)
             else:
+                # Limpiar la URL si no hay imagen
                 setattr(self, field_name, None)
 
         # Process header image
