@@ -145,12 +145,12 @@ class NoticiaViewSet(viewsets.ModelViewSet):
     def upload_image(self, request):
         if 'image' not in request.FILES:
             return Response({'error': 'No image file found'}, status=400)
-        
+            
         image = request.FILES['image']
-        
+            
         # Use the Imgur upload function instead of local storage
         uploaded_url = upload_to_imgur(image)
-        
+            
         if uploaded_url:
             return Response({'success': True, 'url': uploaded_url})
         else:
@@ -327,27 +327,30 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def upload_image(request):
     if request.method == 'POST':
-        if 'file' not in request.FILES and 'image' not in request.FILES:
-            return Response({'error': 'No image file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'file' not in request.FILES:
+            return Response({'error': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Handle either 'file' or 'image' parameter name
-        image_file = request.FILES.get('file') or request.FILES.get('image')
+        file = request.FILES['file']
 
-        if not image_file.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-            return Response({'error': 'File type not supported. Please upload a PNG, JPG, or GIF image.'}, 
-                           status=status.HTTP_400_BAD_REQUEST)
+        if not file.name.endswith(('.png', '.jpg', '.jpeg')):
+            return Response({'error': 'File type not supported. Please upload a PNG or JPG image.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Intenta guardar el archivo y maneja las excepciones
         try:
-            # Upload directly to Imgur
-            imgur_url = upload_to_imgur(image_file)
-            
-            if imgur_url:
-                return Response({'success': True, 'url': imgur_url}, status=status.HTTP_201_CREATED)
-            else:
-                return Response({'error': 'Failed to upload to Imgur'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Verifica que el directorio existe
+            upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+            os.makedirs(upload_dir, exist_ok=True)
+
+            file_path = os.path.join(upload_dir, file.name)
+            with open(file_path, 'wb+') as destination:
+                for chunk in file.chunks():
+                    destination.write(chunk)
+
+            file_url = os.path.join(settings.MEDIA_URL, 'uploads', file.name)
+            return Response({'url': file_url}, status=status.HTTP_201_CREATED)
         
         except Exception as e:
-            return Response({'error': f'Upload failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 

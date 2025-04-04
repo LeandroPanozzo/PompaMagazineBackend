@@ -244,7 +244,7 @@ class Noticia(models.Model):
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     Palabras_clave = models.CharField(max_length=200)
     imagen_cabecera = models.URLField(blank=True, null=True)
-    imagen_cabecera_local = models.ImageField(upload_to='images/', blank=True, null=True)
+    imagen_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_1 = models.URLField(blank=True, null=True)
     imagen_1_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_2 = models.URLField(blank=True, null=True)
@@ -314,7 +314,7 @@ class Noticia(models.Model):
                 setattr(self, field_name, None)
 
         # Process header image
-        handle_image('imagen_cabecera', 'imagen_cabecera_local')
+        handle_image('imagen_cabecera', 'imagen_local')
 
         # Process additional images (1-6)
         for i in range(1, 7):
