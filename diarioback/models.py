@@ -303,6 +303,10 @@ class Noticia(models.Model):
                 self.slug = f"{original_slug}-{count}"
                 count += 1
 
+        # Si imagen_1 existe y imagen_cabecera no está definida, usar imagen_1 como cabecera
+        if self.imagen_1 and not self.imagen_cabecera:
+            self.imagen_cabecera = self.imagen_1
+
         # Get the old instance if it exists
         old_instance = None
         if self.pk:  # Only if the instance already exists
@@ -319,7 +323,7 @@ class Noticia(models.Model):
         
         # Guardar nuevamente con las URLs de Imgur actualizadas
         super().save(update_fields=['imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
-                                   'imagen_4', 'imagen_5', 'imagen_6'])
+                                'imagen_4', 'imagen_5', 'imagen_6'])
     
     def _process_images(self, old_instance=None):
         """Procesa todas las imágenes, sube a Imgur y actualiza URLs"""
