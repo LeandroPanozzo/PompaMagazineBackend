@@ -63,9 +63,12 @@ class Trabajador(models.Model):
             self.user_profile.save()
 
     def save(self, *args, **kwargs):
+        # Verificar si estamos en producción (en Render)
+        is_production = os.environ.get('RENDER', False)
+        
         # Obtener la instancia anterior si existe
         old_instance = None
-        if self.pk:  # Solo si ya existe una instancia guardada previamente
+        if self.pk:
             try:
                 old_instance = Trabajador.objects.get(pk=self.pk)
             except Trabajador.DoesNotExist:
@@ -78,8 +81,15 @@ class Trabajador(models.Model):
                 apellido=self.apellido
             )
 
-        # Manejar la imagen de perfil (local o URL)
-        self._handle_image('foto_perfil', 'foto_perfil_local')
+        # En producción, siempre subir a Imgur
+        if is_production:
+            # Si hay una imagen local nueva, súbela a Imgur
+            if self.foto_perfil_local and hasattr(self.foto_perfil_local, 'path'):
+                self.foto_perfil = upload_to_imgur(self.foto_perfil_local)
+                # No limpiamos foto_perfil_local para mantener una copia en desarrollo
+        else:
+            # En desarrollo, usar el comportamiento original
+            self._handle_image('foto_perfil', 'foto_perfil_local')
 
         # Si no hay imagen local ni URL, asignar la imagen por defecto
         if not self.foto_perfil and not self.foto_perfil_local:
@@ -114,8 +124,14 @@ class Trabajador(models.Model):
             delete_from_imgur(old_image_url)
 
     def get_foto_perfil(self):
-        return self.foto_perfil_local.url if self.foto_perfil_local else self.foto_perfil or self.DEFAULT_FOTO_PERFIL_URL
-
+        # En producción (Render), priorizar siempre la URL de Imgur
+        is_production = os.environ.get('RENDER', False)
+        
+        if is_production:
+            return self.foto_perfil or self.DEFAULT_FOTO_PERFIL_URL
+        else:
+            # En desarrollo, comportamiento original
+            return self.foto_perfil_local.url if self.foto_perfil_local else self.foto_perfil or self.DEFAULT_FOTO_PERFIL_URL
     def __str__(self):
         return f'{self.nombre} {self.apellido}'
 

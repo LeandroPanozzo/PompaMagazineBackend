@@ -378,15 +378,16 @@ def update_trabajador(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @api_view(['PUT'])
 def update_user_profile(request):
-    trabajador = request.user.trabajador  # Obtener el trabajador asociado al usuario
+    trabajador = request.user.trabajador
+    is_production = os.environ.get('RENDER', False)
     
-    # Obtener los datos enviados en la solicitud
+    # Obtener datos de la solicitud
     nombre = request.data.get('nombre')
     apellido = request.data.get('apellido')
-    foto_perfil_url = request.data.get('foto_perfil')  # URL de la imagen
-    foto_perfil_file = request.FILES.get('foto_perfil_local')  # Imagen local
+    foto_perfil_url = request.data.get('foto_perfil')
+    foto_perfil_file = request.FILES.get('foto_perfil_local')
 
-    # Actualizar los campos básicos si están presentes
+    # Actualizar campos básicos
     if nombre:
         trabajador.nombre = nombre
     if apellido:
@@ -394,27 +395,40 @@ def update_user_profile(request):
 
     # Manejo de la imagen de perfil
     if foto_perfil_file:
-        # Si se envía una imagen local, se guarda en el servidor
-        try:
-            file_name = default_storage.save(f'perfil/{foto_perfil_file.name}', ContentFile(foto_perfil_file.read()))
-            trabajador.foto_perfil_local = file_name
-            trabajador.foto_perfil = None  # Limpiar el campo de URL si se sube una imagen local
-        except Exception as e:
-            return Response({'error': f'Error uploading file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # En producción, siempre subir a Imgur
+        if is_production:
+            uploaded_url = upload_to_imgur(foto_perfil_file)
+            if uploaded_url:
+                trabajador.foto_perfil = uploaded_url
+            else:
+                return Response({'error': 'Error al subir imagen a Imgur'}, 
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            # En desarrollo, guardar localmente y también subir a Imgur
+            try:
+                file_name = default_storage.save(f'perfil/{foto_perfil_file.name}', 
+                                               ContentFile(foto_perfil_file.read()))
+                trabajador.foto_perfil_local = file_name
+                
+                # También subir a Imgur como respaldo
+                uploaded_url = upload_to_imgur(foto_perfil_file)
+                if uploaded_url:
+                    trabajador.foto_perfil = uploaded_url
+            except Exception as e:
+                return Response({'error': f'Error al subir archivo: {str(e)}'}, 
+                               status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     elif foto_perfil_url:
-        # Si se envía una URL de la imagen, actualizamos el campo
         trabajador.foto_perfil = foto_perfil_url
-        trabajador.foto_perfil_local = None  # Limpiar el campo de archivo local si se proporciona una URL
 
-    # Guardar los cambios en el perfil del trabajador
+    # Guardar cambios
     trabajador.save()
-
-    # Devolver una respuesta con los datos actualizados del trabajador
+    
+    # Devolver respuesta
     return Response({
         'nombre': trabajador.nombre,
         'apellido': trabajador.apellido,
-        'foto_perfil': trabajador.get_foto_perfil(),  # Método que devuelve la URL o el archivo local
+        'foto_perfil': trabajador.get_foto_perfil(),
     }, status=status.HTTP_200_OK)
 
 
