@@ -296,10 +296,31 @@ class NoticiaSerializer(serializers.ModelSerializer):
             if field in validated_data:
                 setattr(instance, field, validated_data.get(field, getattr(instance, field)))
 
-        # Handle image updates
+        # Handle image updates - with special handling for local paths
         for i in range(7):  # 0 for imagen_cabecera, 1-6 for imagen_1 to imagen_6
             field_name = f'imagen_{i}' if i > 0 else 'imagen_cabecera'
             image_url = validated_data.get(field_name)
+            
+            # Check if this is a local path that needs conversion to Imgur
+            if image_url and (image_url.startswith('/media/') or '/news_images/' in image_url):
+                # Convert relative path to absolute path
+                if image_url.startswith('/'):
+                    image_url = image_url[1:]  # Remove leading slash
+                    
+                # Construct the absolute file path
+                image_path = os.path.join(settings.MEDIA_ROOT, image_url.replace('/media/', ''))
+                
+                try:
+                    # Check if file exists
+                    if os.path.exists(image_path):
+                        # Upload to Imgur
+                        imgur_url = upload_to_imgur(image_path)
+                        if imgur_url:
+                            image_url = imgur_url
+                except Exception as e:
+                    print(f"Error converting {field_name} to Imgur: {str(e)}")
+                    # Continue with original URL if conversion fails
+            
             if image_url:
                 setattr(instance, field_name, image_url)
 

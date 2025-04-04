@@ -60,5 +60,7 @@ urlpatterns = [
     path('password/reset/request/', RequestPasswordResetView.as_view(), name='password-reset-request'),
     path('password/reset/verify/', VerifyTokenView.as_view(), name='password-reset-verify'),
     path('password/reset/confirm/', ResetPasswordView.as_view(), name='password-reset-confirm'),
+    path('convert_to_imgur/', views.convert_to_imgur, name='convert_to_imgur'),
+
 ]
 

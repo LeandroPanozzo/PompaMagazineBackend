@@ -559,3 +559,45 @@ class ResetPasswordView(APIView):
             return Response({"message": "Contraseña actualizada exitosamente."}, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+def convert_to_imgur(request):
+    """Convert a local image path to an Imgur URL"""
+    if request.method == 'POST':
+        image_url = request.data.get('image_url')
+        
+        if not image_url:
+            return Response({'error': 'No image URL provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Remove domain if present
+        if image_url.startswith('http'):
+            parsed_url = urlparse(image_url)
+            image_url = parsed_url.path
+        
+        # Convert relative path to absolute path
+        if image_url.startswith('/'):
+            image_url = image_url[1:]  # Remove leading slash
+        
+        # Construct the absolute file path
+        image_path = os.path.join(settings.MEDIA_ROOT, image_url.replace('/media/', ''))
+        
+        try:
+            # Check if file exists
+            if not os.path.exists(image_path):
+                return Response({'error': f'File not found: {image_path}'}, 
+                               status=status.HTTP_404_NOT_FOUND)
+            
+            # Upload to Imgur
+            imgur_url = upload_to_imgur(image_path)
+            
+            if imgur_url:
+                return Response({'success': True, 'url': imgur_url}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Failed to upload to Imgur'}, 
+                               status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except Exception as e:
+            return Response({'error': f'Conversion failed: {str(e)}'}, 
+                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
