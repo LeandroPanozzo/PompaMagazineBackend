@@ -45,11 +45,7 @@ class Trabajador(models.Model):
     correo = models.EmailField(unique=False)
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
-    # Para la URL de Imgur
-    foto_perfil = models.URLField(blank=True, null=True) 
-    
-    # Campo temporal solo para subidas, no se guarda en la base de datos
-    foto_perfil_temp = models.ImageField(upload_to='temp/', blank=True, null=True)
+    foto_perfil = models.URLField(blank=True, null=True)
     foto_perfil_local = models.ImageField(upload_to='perfil/', blank=True, null=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     rol = models.ForeignKey('Rol', on_delete=models.CASCADE, related_name='trabajadores', null=False)
@@ -67,34 +63,34 @@ class Trabajador(models.Model):
             self.user_profile.save()
 
     def save(self, *args, **kwargs):
-        # Guardar la imagen anterior para eliminarla después si es necesario
-        old_foto_perfil = None
-        if self.pk:
+        # Obtener la instancia anterior si existe
+        old_instance = None
+        if self.pk:  # Solo si ya existe una instancia guardada previamente
             try:
                 old_instance = Trabajador.objects.get(pk=self.pk)
-                old_foto_perfil = old_instance.foto_perfil
             except Trabajador.DoesNotExist:
                 pass
-                
-        # Si hay una imagen temporal, subirla a Imgur
-        if hasattr(self, 'foto_perfil_temp') and self.foto_perfil_temp:
-            imgur_url = upload_to_imgur(self.foto_perfil_temp)
-            if imgur_url:
-                self.foto_perfil = imgur_url
-                
-                # Limpiar el archivo temporal después de subir
-                self.foto_perfil_temp = None
-        
-        # Llamar al método original de save
+
+        # Crear un nuevo UserProfile si no existe
+        if not self.user_profile:
+            self.user_profile = UserProfile.objects.create(
+                nombre=self.nombre,
+                apellido=self.apellido
+            )
+
+        # Manejar la imagen de perfil (local o URL)
+        self._handle_image('foto_perfil', 'foto_perfil_local')
+
+        # Si no hay imagen local ni URL, asignar la imagen por defecto
+        if not self.foto_perfil and not self.foto_perfil_local:
+            self.foto_perfil = self.DEFAULT_FOTO_PERFIL_URL
+
+        # Llamar a la versión original del método `save`
         super().save(*args, **kwargs)
-        
+
         # Eliminar la imagen anterior de Imgur si ha sido reemplazada
-        if old_foto_perfil and old_foto_perfil != self.foto_perfil:
-            delete_from_imgur(old_foto_perfil)
-    
-    def get_foto_perfil(self):
-        """Devuelve la URL de la foto de perfil"""
-        return self.foto_perfil or 'https://example.com/default-profile.png'
+        if old_instance:
+            self._delete_old_image(old_instance, 'foto_perfil')
 
     def _handle_image(self, image_field, image_local_field):
         image_local = getattr(self, image_local_field)
@@ -117,7 +113,9 @@ class Trabajador(models.Model):
         if old_image_url and old_image_url != new_image_url:
             delete_from_imgur(old_image_url)
 
-   
+    def get_foto_perfil(self):
+        return self.foto_perfil_local.url if self.foto_perfil_local else self.foto_perfil or self.DEFAULT_FOTO_PERFIL_URL
+
     def __str__(self):
         return f'{self.nombre} {self.apellido}'
 
