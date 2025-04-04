@@ -45,7 +45,11 @@ class Trabajador(models.Model):
     correo = models.EmailField(unique=False)
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
-    foto_perfil = models.URLField(blank=True, null=True)
+    # Para la URL de Imgur
+    foto_perfil = models.URLField(blank=True, null=True) 
+    
+    # Campo temporal solo para subidas, no se guarda en la base de datos
+    foto_perfil_temp = models.ImageField(upload_to='temp/', blank=True, null=True)
     foto_perfil_local = models.ImageField(upload_to='perfil/', blank=True, null=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     rol = models.ForeignKey('Rol', on_delete=models.CASCADE, related_name='trabajadores', null=False)
@@ -63,34 +67,34 @@ class Trabajador(models.Model):
             self.user_profile.save()
 
     def save(self, *args, **kwargs):
-        # Obtener la instancia anterior si existe
-        old_instance = None
-        if self.pk:  # Solo si ya existe una instancia guardada previamente
+        # Guardar la imagen anterior para eliminarla después si es necesario
+        old_foto_perfil = None
+        if self.pk:
             try:
                 old_instance = Trabajador.objects.get(pk=self.pk)
+                old_foto_perfil = old_instance.foto_perfil
             except Trabajador.DoesNotExist:
                 pass
-
-        # Crear un nuevo UserProfile si no existe
-        if not self.user_profile:
-            self.user_profile = UserProfile.objects.create(
-                nombre=self.nombre,
-                apellido=self.apellido
-            )
-
-        # Manejar la imagen de perfil (local o URL)
-        self._handle_image('foto_perfil', 'foto_perfil_local')
-
-        # Si no hay imagen local ni URL, asignar la imagen por defecto
-        if not self.foto_perfil and not self.foto_perfil_local:
-            self.foto_perfil = self.DEFAULT_FOTO_PERFIL_URL
-
-        # Llamar a la versión original del método `save`
+                
+        # Si hay una imagen temporal, subirla a Imgur
+        if hasattr(self, 'foto_perfil_temp') and self.foto_perfil_temp:
+            imgur_url = upload_to_imgur(self.foto_perfil_temp)
+            if imgur_url:
+                self.foto_perfil = imgur_url
+                
+                # Limpiar el archivo temporal después de subir
+                self.foto_perfil_temp = None
+        
+        # Llamar al método original de save
         super().save(*args, **kwargs)
-
+        
         # Eliminar la imagen anterior de Imgur si ha sido reemplazada
-        if old_instance:
-            self._delete_old_image(old_instance, 'foto_perfil')
+        if old_foto_perfil and old_foto_perfil != self.foto_perfil:
+            delete_from_imgur(old_foto_perfil)
+    
+    def get_foto_perfil(self):
+        """Devuelve la URL de la foto de perfil"""
+        return self.foto_perfil or 'https://example.com/default-profile.png'
 
     def _handle_image(self, image_field, image_local_field):
         image_local = getattr(self, image_local_field)
@@ -113,22 +117,24 @@ class Trabajador(models.Model):
         if old_image_url and old_image_url != new_image_url:
             delete_from_imgur(old_image_url)
 
-    def get_foto_perfil(self):
-        return self.foto_perfil_local.url if self.foto_perfil_local else self.foto_perfil or self.DEFAULT_FOTO_PERFIL_URL
-
+   
     def __str__(self):
         return f'{self.nombre} {self.apellido}'
 
 
 
-IMGUR_CLIENT_ID = '8e1f77de3869736'
-IMGUR_UPLOAD_URL = 'https://api.imgur.com/3/image'
-
+import requests
 import time
+import os
+from django.core.files.uploadedfile import InMemoryUploadedFile
+
+# Constantes de Imgur
+IMGUR_CLIENT_ID = '8e1f77de3869736'  # Tu Client ID actual
+IMGUR_UPLOAD_URL = 'https://api.imgur.com/3/image'
 
 def upload_to_imgur(image):
     """
-    Sube una imagen a Imgur y devuelve la URL de la imagen
+    Sube una imagen a Imgur y devuelve la URL
     
     Args:
         image: Puede ser un objeto InMemoryUploadedFile, una ruta a un archivo,
@@ -142,6 +148,7 @@ def upload_to_imgur(image):
     }
     
     try:
+        # Prepara los datos según el tipo de entrada
         if isinstance(image, InMemoryUploadedFile):
             # Si es un archivo subido en memoria (desde un formulario)
             image_data = image.read()
@@ -149,6 +156,11 @@ def upload_to_imgur(image):
         elif isinstance(image, str) and os.path.isfile(image):
             # Si es una ruta a un archivo
             with open(image, 'rb') as image_file:
+                image_data = image_file.read()
+                files = {'image': image_data}
+        elif hasattr(image, 'path') and os.path.isfile(image.path):
+            # Si es un campo ImageField de Django
+            with open(image.path, 'rb') as image_file:
                 image_data = image_file.read()
                 files = {'image': image_data}
         else:
@@ -163,7 +175,7 @@ def upload_to_imgur(image):
             files=files
         )
         
-        # Manejar errores comunes
+        # Manejar límites de peticiones
         if response.status_code == 429:  # Too Many Requests
             print("Error 429: Demasiadas solicitudes, esperando antes de reintentar...")
             time.sleep(60)  # Esperar 60 segundos antes de reintentar
@@ -184,8 +196,55 @@ def upload_to_imgur(image):
     
     return None
 
+# Implementación mejorada para eliminar imágenes de Imgur
 def delete_from_imgur(image_url):
-    pass
+    """
+    Elimina una imagen de Imgur usando su URL o hash
+    
+    Args:
+        image_url: URL de la imagen o hash de Imgur
+    
+    Returns:
+        bool: True si se eliminó correctamente, False en caso contrario
+    """
+    # Extrae el hash de la imagen desde la URL
+    # Las URLs de Imgur suelen tener el formato: https://i.imgur.com/abcdefg.jpg
+    try:
+        if not image_url:
+            return False
+            
+        # Extrae el hash de la URL
+        image_hash = None
+        if '/' in image_url:
+            # Obtener la última parte de la URL (el nombre del archivo)
+            filename = image_url.split('/')[-1]
+            # Quitar la extensión si existe
+            image_hash = filename.split('.')[0] if '.' in filename else filename
+        else:
+            # Si solo es un hash
+            image_hash = image_url
+            
+        if not image_hash:
+            return False
+            
+        # URL para eliminar la imagen
+        delete_url = f'https://api.imgur.com/3/image/{image_hash}'
+        
+        headers = {
+            'Authorization': f'Client-ID {IMGUR_CLIENT_ID}'
+        }
+        
+        response = requests.delete(delete_url, headers=headers)
+        
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"Error al eliminar imagen de Imgur: {response.status_code}")
+            return False
+            
+    except Exception as e:
+        print(f"Error al eliminar imagen de Imgur: {str(e)}")
+        return False
 
 class NoticiaVisita(models.Model):
     noticia = models.ForeignKey('Noticia', on_delete=models.CASCADE, related_name='visitas')

@@ -168,12 +168,6 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Para servir archivos media en producción
-if not DEBUG:
-    # Configura una ubicación estable para archivos media si estás usando Render
-    # o considera usar un servicio de almacenamiento en la nube
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'mediafiles')
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
 # Email settings

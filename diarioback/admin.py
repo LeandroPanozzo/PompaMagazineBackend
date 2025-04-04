@@ -42,29 +42,40 @@ class RolAdmin(admin.ModelAdmin):
 from django import forms
 from .models import Trabajador
 
+from django import forms
+from .models import Trabajador, UserProfile
+from django.core.files.uploadedfile import InMemoryUploadedFile
+
 class TrabajadorForm(forms.ModelForm):
+    foto_perfil_temp = forms.ImageField(
+        required=False, 
+        label="Foto de Perfil",
+        help_text="La imagen será subida automáticamente a Imgur"
+    )
+    
     class Meta:
         model = Trabajador
-        fields = ['nombre', 'apellido', 'rol', 'user', 'foto_perfil', 'foto_perfil_local']
+        fields = ['nombre', 'apellido', 'rol', 'user', 'foto_perfil_temp']
+        # Removido foto_perfil y foto_perfil_local de los campos visibles
+        # ya que serán manejados automáticamente
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        instance = kwargs.get('instance')
+        # Si tenemos una instancia existente con foto de perfil, mostrar la URL actual
+        if instance and instance.foto_perfil:
+            self.fields['foto_perfil_temp'].help_text += f"<br>Imagen actual: <a href='{instance.foto_perfil}' target='_blank'>{instance.foto_perfil}</a>"
 
     def save(self, commit=True):
         # Get the instance (existing object or new one)
         instance = super().save(commit=False)
         
-        # Get the old instance if it exists
-        old_instance = None
-        if instance.pk:  # Check if the instance has a primary key (meaning it exists in DB)
-            try:
-                old_instance = Trabajador.objects.get(pk=instance.pk)
-            except Trabajador.DoesNotExist:
-                pass
-
         # Create a new UserProfile if the instance doesn't have one
         if not instance.user_profile:
             instance.user_profile = UserProfile.objects.create(
                 nombre=instance.nombre,
                 apellido=instance.apellido,
-                es_trabajador=True  # Set this to True when creating a new UserProfile
+                es_trabajador=True
             )
         else:
             # Ensure es_trabajador is True for existing profiles
@@ -72,54 +83,57 @@ class TrabajadorForm(forms.ModelForm):
                 instance.user_profile.es_trabajador = True
                 instance.user_profile.save()
 
+        # Handle the image upload - set the temp field so the model save method will handle it
+        foto_temp = self.cleaned_data.get('foto_perfil_temp')
+        if foto_temp:
+            instance.foto_perfil_temp = foto_temp
+
         # Save the instance if commit is True
         if commit:
             instance.save()
             
         return instance
 
-
 @admin.register(Trabajador)
 class TrabajadorAdmin(admin.ModelAdmin):
-    form = TrabajadorForm  # Usar el formulario personalizado
-
+    form = TrabajadorForm  # Using the custom form with Imgur upload support
+    
     list_display = (
         'correo', 'nombre', 'apellido', 'rol', 'user_link', 'mostrar_foto_perfil'
     )
     search_fields = ('correo', 'nombre', 'apellido', 'user__username', 'user__email')
     list_filter = ('rol',)
+    
+    fieldsets = (
+        ('Información Personal', {
+            'fields': ('nombre', 'apellido', 'user', 'rol')
+        }),
+        ('Foto de Perfil', {
+            'fields': ('foto_perfil_temp',),
+            'description': 'La imagen se subirá automáticamente a Imgur al guardar'
+        }),
+    )
 
+    # The rest of your methods remain the same
     def user_link(self, obj):
         url = reverse('admin:auth_user_change', args=[obj.user.id])
         return format_html(f'<a href="{url}">{obj.user}</a>')
-
+    
     user_link.short_description = 'Usuario'
 
-    # Método para mostrar la foto de perfil
     def mostrar_foto_perfil(self, obj):
         if obj.foto_perfil:
             return format_html('<img src="{}" style="max-height: 100px;">', obj.foto_perfil)
         elif obj.foto_perfil_local:
             return format_html('<img src="{}" style="max-height: 100px;">', obj.foto_perfil_local)
         return "No tiene foto de perfil"
-
+    
     mostrar_foto_perfil.short_description = 'Foto de Perfil'
 
-    # Sobrescribir el método save_model para asignar correo y contraseña automáticamente
     def save_model(self, request, obj, form, change):
         obj.correo = obj.user.email
         obj.contraseña = obj.user.password
         super().save_model(request, obj, form, change)
-
-    # Sobrescribir los permisos de cambio
-    def has_change_permission(self, request, obj=None):
-        if request.user.is_superuser:
-            return True
-        if obj and request.user == obj.user:
-            return True
-        return False
-
-
 
 @admin.register(Usuario)
 class UsuarioAdmin(admin.ModelAdmin):

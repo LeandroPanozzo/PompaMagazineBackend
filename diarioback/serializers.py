@@ -93,46 +93,49 @@ class TrabajadorSerializer(serializers.ModelSerializer):
     foto_perfil = serializers.URLField(read_only=True)  # Para retornar la URL de la imagen subida a Imgur
     descripcion_usuario = serializers.CharField(required=False, allow_blank=True)  # Asegúrate de incluir esto
     
+    foto_perfil_archivo = serializers.ImageField(write_only=True, required=False)
+    
     class Meta:
         model = Trabajador
-        fields = ['id', 'nombre', 'apellido', 'foto_perfil', 'foto_perfil_local', 'descripcion_usuario']
-
+        fields = ['id', 'nombre', 'apellido', 'foto_perfil', 'foto_perfil_archivo', 'descripcion_usuario']
+    
     def create(self, validated_data):
-        foto_perfil_local = validated_data.pop('foto_perfil_local', None)
+        foto_archivo = validated_data.pop('foto_perfil_archivo', None)
+        
+        # Crear el trabajador
         trabajador = Trabajador.objects.create(**validated_data)
-
-        if foto_perfil_local:
-            # Guarda la imagen local y la URL de la imagen en Imgur
-            trabajador.foto_perfil_local = foto_perfil_local
-            trabajador.foto_perfil = upload_to_imgur(foto_perfil_local)
-            trabajador.save()
-
+        
+        # Si hay un archivo de imagen, subirlo a Imgur
+        if foto_archivo:
+            img_url = upload_to_imgur(foto_archivo)
+            if img_url:
+                trabajador.foto_perfil = img_url
+                trabajador.save()
+        
         return trabajador
-
+    
     def update(self, instance, validated_data):
-        foto_perfil_local = validated_data.pop('foto_perfil_local', None)
-
-        # Actualiza los campos de nombre y apellido
-        for field in ['nombre', 'apellido']:
-            if field in validated_data:
-                setattr(instance, field, validated_data[field])
-
-        # Actualiza la descripcion_usuario si está en validated_data
-        if 'descripcion_usuario' in validated_data:
-            if instance.user_profile:  # Verifica que el perfil del usuario exista
-                instance.descripcion_usuario = validated_data['descripcion_usuario']
-            else:
-                # Opcional: Si no existe un perfil de usuario, puedes crear uno o manejarlo de otra manera
-                user_profile = UserProfile.objects.create(user=instance.user)
-                user_profile.descripcion_usuario = validated_data['descripcion_usuario']
-                user_profile.save()
-
-        # Manejo de la imagen de perfil local
-        if foto_perfil_local:
-            instance.foto_perfil_local = foto_perfil_local  # Guardar en el campo local
-            instance.foto_perfil = upload_to_imgur(foto_perfil_local)  # Subir a Imgur y guardar URL
-
-        instance.save()  # Guarda los cambios en la instancia Trabajador
+        foto_archivo = validated_data.pop('foto_perfil_archivo', None)
+        
+        # Actualizar los campos básicos
+        for field in validated_data:
+            setattr(instance, field, validated_data[field])
+            
+        # Si hay una nueva imagen, subirla a Imgur
+        if foto_archivo:
+            img_url = upload_to_imgur(foto_archivo)
+            if img_url:
+                # Guarda la URL anterior para poder eliminarla después
+                old_url = instance.foto_perfil
+                
+                # Actualiza con la nueva URL
+                instance.foto_perfil = img_url
+                
+                # Elimina la imagen anterior de Imgur si existe
+                if old_url:
+                    delete_from_imgur(old_url)
+        
+        instance.save()
         return instance
         
 

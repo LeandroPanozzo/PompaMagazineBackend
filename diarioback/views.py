@@ -378,45 +378,44 @@ def update_trabajador(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @api_view(['PUT'])
 def update_user_profile(request):
-    trabajador = request.user.trabajador  # Obtener el trabajador asociado al usuario
-    
-    # Obtener los datos enviados en la solicitud
-    nombre = request.data.get('nombre')
-    apellido = request.data.get('apellido')
-    foto_perfil_url = request.data.get('foto_perfil')  # URL de la imagen
-    foto_perfil_file = request.FILES.get('foto_perfil_local')  # Imagen local
-
-    # Actualizar los campos básicos si están presentes
-    if nombre:
-        trabajador.nombre = nombre
-    if apellido:
-        trabajador.apellido = apellido
-
-    # Manejo de la imagen de perfil
-    if foto_perfil_file:
-        # Si se envía una imagen local, se guarda en el servidor
-        try:
-            file_name = default_storage.save(f'perfil/{foto_perfil_file.name}', ContentFile(foto_perfil_file.read()))
-            trabajador.foto_perfil_local = file_name
-            trabajador.foto_perfil = None  # Limpiar el campo de URL si se sube una imagen local
-        except Exception as e:
-            return Response({'error': f'Error uploading file: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    elif foto_perfil_url:
-        # Si se envía una URL de la imagen, actualizamos el campo
-        trabajador.foto_perfil = foto_perfil_url
-        trabajador.foto_perfil_local = None  # Limpiar el campo de archivo local si se proporciona una URL
-
-    # Guardar los cambios en el perfil del trabajador
-    trabajador.save()
-
-    # Devolver una respuesta con los datos actualizados del trabajador
-    return Response({
-        'nombre': trabajador.nombre,
-        'apellido': trabajador.apellido,
-        'foto_perfil': trabajador.get_foto_perfil(),  # Método que devuelve la URL o el archivo local
-    }, status=status.HTTP_200_OK)
-
+    try:
+        trabajador = request.user.trabajador
+        
+        # Actualizar campos básicos
+        if 'nombre' in request.data:
+            trabajador.nombre = request.data.get('nombre')
+        if 'apellido' in request.data:
+            trabajador.apellido = request.data.get('apellido')
+        if 'descripcion_usuario' in request.data and hasattr(trabajador, 'descripcion_usuario'):
+            trabajador.descripcion_usuario = request.data.get('descripcion_usuario')
+            
+        # Manejar la imagen de perfil
+        if 'foto_perfil_archivo' in request.FILES:
+            # Subir directamente a Imgur
+            img_url = upload_to_imgur(request.FILES['foto_perfil_archivo'])
+            if img_url:
+                # Guardar URL anterior para eliminarla después
+                old_url = trabajador.foto_perfil
+                
+                # Actualizar con la nueva URL
+                trabajador.foto_perfil = img_url
+                
+                # Eliminar la imagen anterior si existe
+                if old_url:
+                    delete_from_imgur(old_url)
+        
+        trabajador.save()
+        
+        return Response({
+            'id': trabajador.id,
+            'nombre': trabajador.nombre,
+            'apellido': trabajador.apellido,
+            'foto_perfil': trabajador.get_foto_perfil(),
+            'descripcion_usuario': getattr(trabajador, 'descripcion_usuario', None)
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #para las reacciones de las noticias:
 
