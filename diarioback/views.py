@@ -9,6 +9,7 @@ from django.contrib.auth import authenticate
 from .serializers import UserProfileSerializer, UserRegistrationSerializer, LoginSerializer
 from django.core.files.storage import default_storage
 import uuid
+from .imgur_utils import upload_to_imgur, delete_from_imgur
 from django.core.files.base import ContentFile
 from rest_framework.decorators import api_view
 import os
@@ -147,14 +148,26 @@ class NoticiaViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No image file found'}, status=400)
             
         image = request.FILES['image']
+        
+        # Verificar tipo de archivo
+        if not image.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+            return Response({
+                'error': 'Tipo de archivo no soportado. Por favor suba una imagen PNG, JPG, JPEG o GIF.'
+            }, status=400)
             
-        # Use the Imgur upload function instead of local storage
+        # Subir directamente a Imgur en lugar de almacenar localmente
         uploaded_url = upload_to_imgur(image)
             
         if uploaded_url:
-            return Response({'success': True, 'url': uploaded_url})
+            return Response({
+                'success': True, 
+                'url': uploaded_url,
+                'message': 'Imagen subida exitosamente a Imgur'
+            })
         else:
-            return Response({'error': 'Failed to upload image to Imgur'}, status=500)
+            return Response({
+                'error': 'Error al subir la imagen a Imgur'
+            }, status=500)
 User = get_user_model()
 
 # Vista para el registro de usuarios

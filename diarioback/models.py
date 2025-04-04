@@ -127,39 +127,96 @@ IMGUR_UPLOAD_URL = 'https://api.imgur.com/3/image'
 import time
 
 def upload_to_imgur(image):
+    """
+    Sube una imagen a Imgur y devuelve la URL de la imagen
+    
+    Args:
+        image: Puede ser un objeto InMemoryUploadedFile, una ruta a un archivo,
+               o un archivo abierto en modo binario
+    
+    Returns:
+        str: URL de la imagen en Imgur, o None si falló la subida
+    """
     headers = {
         'Authorization': f'Client-ID {IMGUR_CLIENT_ID}'
     }
-
-    if isinstance(image, InMemoryUploadedFile):
+    
+    try:
+        if isinstance(image, InMemoryUploadedFile):
+            # Si es un archivo subido en memoria (desde un formulario)
+            image_data = image.read()
+            files = {'image': image_data}
+        elif isinstance(image, str) and os.path.isfile(image):
+            # Si es una ruta a un archivo
+            with open(image, 'rb') as image_file:
+                image_data = image_file.read()
+                files = {'image': image_data}
+        else:
+            # Si es un archivo ya abierto o cualquier otro objeto que pueda ser leído
+            image_data = image.read() if hasattr(image, 'read') else image
+            files = {'image': image_data}
+        
+        # Intentar subir la imagen a Imgur
         response = requests.post(
             IMGUR_UPLOAD_URL,
             headers=headers,
-            files={'image': image.read()}
+            files=files
         )
-    else:
-        with open(image, 'rb') as image_file:
-            response = requests.post(
-                IMGUR_UPLOAD_URL,
-                headers=headers,
-                files={'image': image_file}
-            )
-
-    # Manejo de errores
-    if response.status_code == 429:  # Too Many Requests
-        print("Error 429: Demasiadas solicitudes, esperando antes de reintentar...")
-        time.sleep(60)  # Esperar 60 segundos antes de reintentar
-        return upload_to_imgur(image)  # Reintentar la carga
-
-    response_data = response.json()
-    if response_data['success']:
-        return response_data['data']['link']
+        
+        # Manejar errores comunes
+        if response.status_code == 429:  # Too Many Requests
+            print("Error 429: Demasiadas solicitudes, esperando antes de reintentar...")
+            time.sleep(60)  # Esperar 60 segundos antes de reintentar
+            return upload_to_imgur(image)  # Reintentar la carga
+        
+        # Verificar respuesta
+        if response.status_code == 200:
+            response_data = response.json()
+            if response_data.get('success'):
+                return response_data['data']['link']
+            else:
+                print(f"Error al subir imagen a Imgur: {response_data.get('data', {}).get('error')}")
+        else:
+            print(f"Error HTTP {response.status_code} al subir imagen a Imgur")
+        
+    except Exception as e:
+        print(f"Excepción al subir imagen a Imgur: {str(e)}")
     
     return None
 
 def delete_from_imgur(image_url):
-    # Implementar eliminación si es necesario
-    pass
+    """
+    Elimina una imagen de Imgur usando su URL
+    
+    Args:
+        image_url (str): URL de la imagen en Imgur
+    
+    Returns:
+        bool: True si la eliminación fue exitosa, False en caso contrario
+    """
+    # Extraer el hash de la imagen desde la URL
+    try:
+        # La URL de Imgur tiene el formato: https://i.imgur.com/HASH.ext
+        image_hash = image_url.split('/')[-1].split('.')[0]
+        
+        headers = {
+            'Authorization': f'Client-ID {IMGUR_CLIENT_ID}'
+        }
+        
+        # Realizar la solicitud DELETE a la API de Imgur
+        delete_url = IMGUR_DELETE_URL.format(hash=image_hash)
+        response = requests.delete(delete_url, headers=headers)
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data.get('success', False)
+        else:
+            print(f"Error HTTP {response.status_code} al eliminar imagen de Imgur")
+            return False
+            
+    except Exception as e:
+        print(f"Excepción al eliminar imagen de Imgur: {str(e)}")
+        return False
 
 class NoticiaVisita(models.Model):
     noticia = models.ForeignKey('Noticia', on_delete=models.CASCADE, related_name='visitas')
@@ -268,9 +325,6 @@ class Noticia(models.Model):
         if self.categorias:
             self.categorias = Noticia.validate_categorias(self.categorias)
         
-        # Debug log to verify categorias
-        print(f"Saving categorias: {self.categorias}")
-
         # Handle slug creation
         if not self.slug:
             self.slug = slugify(self.nombre_noticia)
@@ -288,53 +342,58 @@ class Noticia(models.Model):
             except Noticia.DoesNotExist:
                 pass
 
-        # Call the original save method
+        # Primero guardamos para obtener un ID si es un objeto nuevo
         super().save(*args, **kwargs)
 
-        # Handle image uploads (if needed)
-        def handle_image(field_name, image_local_field_name):
-            image_local_field = getattr(self, image_local_field_name)
-            image_url_field = getattr(self, field_name)
-
-            if image_local_field and hasattr(image_local_field, 'file'):
-                # Si es un archivo recién subido en memoria
-                if hasattr(image_local_field, 'temporary_file_path'):
-                    # Si Django ha creado un archivo temporal
-                    uploaded_image_url = upload_to_imgur(image_local_field.temporary_file_path())
-                else:
-                    # Si está en memoria, pasar directamente el objeto de archivo
-                    uploaded_image_url = upload_to_imgur(image_local_field)
-                
-                setattr(self, field_name, uploaded_image_url)
-            elif image_url_field:
-                # Mantener la URL existente
-                setattr(self, field_name, image_url_field)
-            else:
-                # Limpiar la URL si no hay imagen
-                setattr(self, field_name, None)
-
-        # Process header image
-        handle_image('imagen_cabecera', 'imagen_local')
-
-        # Process additional images (1-6)
+        # Procesar las imágenes y subir a Imgur
+        self._process_images(old_instance)
+        
+        # Guardar nuevamente con las URLs de Imgur actualizadas
+        super().save(update_fields=['imagen_cabecera', 'imagen_1', 'imagen_2', 'imagen_3', 
+                                   'imagen_4', 'imagen_5', 'imagen_6'])
+    
+    def _process_images(self, old_instance=None):
+        """Procesa todas las imágenes, sube a Imgur y actualiza URLs"""
+        # Procesar imagen de cabecera
+        if self.imagen_local and hasattr(self.imagen_local, 'file'):
+            # Subir la imagen a Imgur
+            imgur_url = upload_to_imgur(self.imagen_local)
+            if imgur_url:
+                # Si la subida fue exitosa, actualizar la URL
+                self.imagen_cabecera = imgur_url
+                # Limpiar el campo local después de subir
+                self.imagen_local = None
+        
+        # Procesar imágenes adicionales (1-6)
         for i in range(1, 7):
-            handle_image(f'imagen_{i}', f'imagen_{i}_local')
-
-        # Delete old images from Imgur if they are replaced
+            local_field_name = f'imagen_{i}_local'
+            url_field_name = f'imagen_{i}'
+            
+            local_field = getattr(self, local_field_name)
+            if local_field and hasattr(local_field, 'file'):
+                # Subir la imagen a Imgur
+                imgur_url = upload_to_imgur(local_field)
+                if imgur_url:
+                    # Si la subida fue exitosa, actualizar la URL
+                    setattr(self, url_field_name, imgur_url)
+                    # Limpiar el campo local después de subir
+                    setattr(self, local_field_name, None)
+        
+        # Eliminar imágenes antiguas de Imgur si fueron reemplazadas
         if old_instance:
-            def delete_old_image(field_name):
-                old_image_url = getattr(old_instance, field_name)
-                new_image_url = getattr(self, field_name)
-                if old_image_url and old_image_url != new_image_url:
-                    delete_from_imgur(old_image_url)
-
-            # Verify and delete old images if they are replaced
-            delete_old_image('imagen_cabecera')
-            for i in range(1, 7):
-                delete_old_image(f'imagen_{i}')
-
-        # Save again to update image URLs
-        super().save(*args, **kwargs)
+            self._delete_old_images(old_instance)
+    
+    def _delete_old_images(self, old_instance):
+        """Elimina las imágenes antiguas de Imgur si han sido reemplazadas"""
+        fields_to_check = ['imagen_cabecera'] + [f'imagen_{i}' for i in range(1, 7)]
+        
+        for field_name in fields_to_check:
+            old_url = getattr(old_instance, field_name)
+            new_url = getattr(self, field_name)
+            
+            # Si la URL ha cambiado y la antigua URL existe, eliminarla de Imgur
+            if old_url and old_url != new_url and old_url.startswith('https://i.imgur.com/'):
+                delete_from_imgur(old_url)
     def get_categorias(self):
         return self.categorias.split(',') if self.categorias else []
 
