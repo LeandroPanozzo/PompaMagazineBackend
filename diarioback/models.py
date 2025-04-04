@@ -243,7 +243,7 @@ class Noticia(models.Model):
     contador_visitas = models.PositiveIntegerField(default=0)
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     Palabras_clave = models.CharField(max_length=200)
-    imagen_cabecera = models.ImageField(upload_to='images/', blank=True, null=True)
+    imagen_cabecera = models.URLField(blank=True, null=True)
     imagen_cabecera_local = models.ImageField(upload_to='images/', blank=True, null=True)
     imagen_1 = models.URLField(blank=True, null=True)
     imagen_1_local = models.ImageField(upload_to='images/', blank=True, null=True)
