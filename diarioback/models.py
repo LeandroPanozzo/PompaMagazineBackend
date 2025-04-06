@@ -266,7 +266,7 @@ class Noticia(models.Model):
             ('conurbano', 'Conurbano'),
             ('provincias', 'Provincias'),
             ('municipios', 'Municipios'),
-            ('protestas', 'Protestas')
+            
         )),
         ('Cultura', (
             ('cine', 'Cine'),
