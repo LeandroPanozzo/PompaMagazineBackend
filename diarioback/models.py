@@ -449,8 +449,8 @@ class Noticia(models.Model):
         }
 
     def incrementar_visitas(self, ip_address=None):
-        # Verifica si han pasado 24 horas desde la última actualización
-        if timezone.now() - self.ultima_actualizacion_contador > timedelta(hours=24):
+        # Verifica si ha pasado una semana desde la última actualización
+        if timezone.now() - self.ultima_actualizacion_contador > timedelta(days=7):
             self.contador_visitas = 0
             self.ultima_actualizacion_contador = timezone.now()
             self.save()
@@ -465,10 +465,11 @@ class Noticia(models.Model):
         self.contador_visitas += 1
         self.save()
 
+    # Agrega una propiedad para obtener las visitas de la última semana
     @property
-    def visitas_ultimas_24h(self):
-        hace_24h = timezone.now() - timedelta(hours=24)
-        return self.visitas.filter(fecha__gte=hace_24h).count()
+    def visitas_ultima_semana(self):
+        hace_una_semana = timezone.now() - timedelta(days=7)
+        return self.visitas.filter(fecha__gte=hace_una_semana).count()
 
     class Meta:
         ordering = ['-contador_visitas']  # Ordena por defecto por número de visitas

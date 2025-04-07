@@ -122,10 +122,10 @@ class NoticiaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def mas_vistas(self, request):
-        hace_24h = timezone.now() - timedelta(hours=24)
+        hace_una_semana = timezone.now() - timedelta(days=7)
         noticias_mas_vistas = self.get_queryset().filter(
             estado=3,
-            ultima_actualizacion_contador__gte=hace_24h
+            ultima_actualizacion_contador__gte=hace_una_semana
         ).order_by('-contador_visitas')[:10]
         
         serializer = self.get_serializer(noticias_mas_vistas, many=True)
