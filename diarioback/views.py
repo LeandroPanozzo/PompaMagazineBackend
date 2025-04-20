@@ -142,6 +142,36 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def agregar_editor(self, request, pk=None):
+        noticia = self.get_object()
+        editor_id = request.data.get('editor_id')
+        
+        if not editor_id:
+            return Response({'error': 'Se requiere un ID de editor'}, status=400)
+            
+        try:
+            editor = Trabajador.objects.get(pk=editor_id)
+            noticia.editores_en_jefe.add(editor)
+            return Response({'success': True})
+        except Trabajador.DoesNotExist:
+            return Response({'error': 'Editor no encontrado'}, status=404)
+    
+    @action(detail=True, methods=['post'])
+    def eliminar_editor(self, request, pk=None):
+        noticia = self.get_object()
+        editor_id = request.data.get('editor_id')
+        
+        if not editor_id:
+            return Response({'error': 'Se requiere un ID de editor'}, status=400)
+            
+        try:
+            editor = Trabajador.objects.get(pk=editor_id)
+            noticia.editores_en_jefe.remove(editor)
+            return Response({'success': True})
+        except Trabajador.DoesNotExist:
+            return Response({'error': 'Editor no encontrado'}, status=404)
     @action(detail=False, methods=['post'])
     def upload_image(self, request):
         if 'image' not in request.FILES:

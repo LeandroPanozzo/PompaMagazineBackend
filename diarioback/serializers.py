@@ -176,7 +176,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class NoticiaSerializer(serializers.ModelSerializer):
     autor = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all())
-    editor_en_jefe = serializers.PrimaryKeyRelatedField(queryset=Trabajador.objects.all(), required=False, allow_null=True)
+    editores_en_jefe = serializers.PrimaryKeyRelatedField(
+        queryset=Trabajador.objects.all(),
+        required=False,
+        many=True
+    )
     estado = serializers.PrimaryKeyRelatedField(queryset=EstadoPublicacion.objects.all())
     # Cambio principal: categorias como campo personalizado
      # Define categorias as a string field that will be validated against allowed categories
@@ -198,13 +202,13 @@ class NoticiaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Noticia
         fields = [
-            'id', 'autor', 'editor_en_jefe', 'nombre_noticia', 'subtitulo', 
+            'id', 'autor', 'editores_en_jefe', 'nombre_noticia', 'subtitulo', 
             'fecha_publicacion', 'categorias', 'Palabras_clave', 
-             'imagen_1', 'imagen_2', 'imagen_3', 
+            'imagen_1', 'imagen_2', 'imagen_3', 
             'imagen_4', 'imagen_5', 'imagen_6', 
             'estado', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 
-            'conteo_reacciones', 'contador_visitas','visitas_semana'
+            'conteo_reacciones', 'contador_visitas', 'visitas_semana'
         ]
 
     def get_conteo_reacciones(self, obj):
@@ -275,7 +279,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Debug log to verify validated data
         print("Validated Data in update:", validated_data)
-
+        editores = validated_data.pop('editores_en_jefe', None)
         # Ensure categorias is properly formatted
         categorias = validated_data.get('categorias', '')
         if categorias and isinstance(categorias, list):
@@ -300,7 +304,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
             image_url = validated_data.get(field_name)
             if image_url:
                 setattr(instance, field_name, image_url)
-
+        # Actualiza los editores si se proporcionaron
+        if editores is not None:
+            # Limpia los editores existentes y añade los nuevos
+            instance.editores_en_jefe.clear()
+            instance.editores_en_jefe.add(*editores)
         # Save the updated instance
         instance.save()
 

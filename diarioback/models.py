@@ -318,7 +318,12 @@ class Noticia(models.Model):
 
     # Other fields...
     autor = models.ForeignKey('Trabajador', on_delete=models.CASCADE, related_name='noticias', null=False)
-    editor_en_jefe = models.ForeignKey('Trabajador', on_delete=models.SET_NULL, null=True, related_name='noticias_supervisadas')
+    editores_en_jefe = models.ManyToManyField(
+        'Trabajador', 
+        related_name='noticias_supervisadas',
+        blank=True,
+        verbose_name="Editores en jefe"
+    )
     nombre_noticia = models.CharField(max_length=255)
     fecha_publicacion = models.DateField()
     url = models.URLField(max_length=200, blank=True, null=True)
