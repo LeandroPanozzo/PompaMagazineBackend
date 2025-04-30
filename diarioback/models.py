@@ -262,32 +262,45 @@ class Noticia(models.Model):
         ('Portada', 'portada'),
         ('Politica', (
             ('legislativos', 'Legislativos'),
-            ('judiciales', 'Judiciales'),
-            ('conurbano', 'Conurbano'),
+            ('policiales', 'Policiales'),
+            ('elecciones', 'Elecciones'),
+            ('gobierno', 'Gobierno'),
             ('provincias', 'Provincias'),
-            ('municipios', 'Municipios'),
+            ('capital', 'Capital'),
             
         )),
         ('Cultura', (
             ('cine', 'Cine'),
             ('literatura', 'Literatura'),
-            ('moda', 'Moda'),
+            ('salud', 'Salud'),
             ('tecnologia', 'Tecnologia'),
-            ('eventos', 'Eventos')
+            ('eventos', 'Eventos'),
+            ('educacion', 'Educacion'),
+            ('efemerides', 'Efemerides'),
         )),
         ('Economia', (
             ('finanzas', 'Finanzas'),
-            ('negocios', 'Negocios'),
-            ('empresas', 'Empresas'),
+            ('comercio_internacional', 'Comercio internacional'),
+            ('politica_economica', 'Politica economica'),
+            ('pobreza_e_inflacion', 'Pobreza e inflacion'),
             ('dolar', 'Dolar')
         )),
         ('Mundo', (
-            ('politica_exterior', 'Politica Exterior'),
+            ('argentina', 'Argentina'),
             ('estados_unidos', 'Estados Unidos'),
             ('asia', 'Asia'),
             ('medio_oriente', 'Medio Oriente'),
             ('internacional', 'Internacional'),
-        ))
+            ('latinoamerica', 'Latinoamerica'),
+        )),
+        ('Tipos de notas', (
+            ('de_analisis', 'De analisis'),
+            ('de_opinion', 'De opinion'),
+            ('informativas', 'Informativas'),
+            ('entrevistas', 'Entrevistas'),
+            
+        )),
+
     ]
 
     # Fixed flattening of categories
