@@ -64,6 +64,8 @@ MIDDLEWARE = [
     
 ]
 
+CSRF_TRUSTED_ORIGINS = ['http://64.23.212.155']
+
 ROOT_URLCONF = 'diario_back_api.urls'
 
 TEMPLATES = [
