@@ -50,7 +50,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'diarioback'
 ]
-SESSION_TRUSTED='django.contrib.sessions.backends.db'
+# With this:
+SESSION_ENGINE='django.contrib.sessions.backends.db'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
