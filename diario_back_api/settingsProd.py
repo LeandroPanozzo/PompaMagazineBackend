@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'diarioback'
 ]
 # With this:
+SESSION_TRUSTED='django.contrib.sessions.backends.db'
 SESSION_ENGINE='django.contrib.sessions.backends.db'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
