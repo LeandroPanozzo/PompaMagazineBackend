@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+
 from pathlib import Path
 import os
 from datetime import timedelta
@@ -30,9 +31,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY', default='')
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False  # Cambiado a False para producción
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['api.diarioelgobierno.ar', 'localhost', '127.0.0.1']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
@@ -66,7 +67,7 @@ MIDDLEWARE = [
     
 ]
 
-CSRF_TRUSTED_ORIGINS = ['http://64.23.212.155']
+CSRF_TRUSTED_ORIGINS = ['http://64.23.212.155', 'https://api.diarioelgobierno.ar']
 
 ROOT_URLCONF = 'diario_back_api.urls'
 
@@ -101,8 +102,6 @@ DATABASES = {
         'HOST': 'localhost',
         'PORT': ''
         }
-
-
     }
 
 
@@ -156,6 +155,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://diarioelgobierno.ar",  # Añadido el dominio de producción
 ]
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [  # Esto es lo que debe ser
@@ -178,17 +178,30 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
 }
 
-SECURE_SSL_REDIRECT = True
+# CAMBIO PRINCIPAL: Desactivar redirección SSL ya que Nginx la maneja
+SECURE_SSL_REDIRECT = False
+
+# Mantener esta configuración para asegurar que Django reconozca correctamente
+# las solicitudes HTTPS que pasan por Nginx/Cloudflare
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Configuraciones de seguridad recomendadas
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 31536000  # 1 año
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
-CORS_ALLOW_ALL_ORIGINS = True
-
+# Configuración de CORS
+CORS_ALLOW_ALL_ORIGINS = True  # Considera limitar esto en producción
 CORS_ALLOW_CREDENTIALS = True
+
+# Configuración de archivos multimedia
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
+
 # Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
