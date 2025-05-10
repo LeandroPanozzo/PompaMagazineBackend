@@ -237,8 +237,12 @@ class NoticiaSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Ensure ID is not in the data
         validated_data.pop('id', None)
+        
         # Debug log to verify validated data
         print("Validated Data in create:", validated_data)
+
+        # Extraer los editores_en_jefe antes de crear el objeto
+        editores_en_jefe = validated_data.pop('editores_en_jefe', [])
 
         # Ensure categorias is properly formatted
         categorias = validated_data.get('categorias', '')
@@ -247,8 +251,12 @@ class NoticiaSerializer(serializers.ModelSerializer):
         elif not categorias:
             validated_data['categorias'] = ''
 
-        # Create the Noticia instance
+        # Create the Noticia instance without the many-to-many field
         noticia = Noticia.objects.create(**validated_data)
+
+        # Ahora asignamos los editores_en_jefe usando el método set()
+        if editores_en_jefe:
+            noticia.editores_en_jefe.set(editores_en_jefe)
 
         # Generate URL for the new Noticia
         noticia.url = f"/noticia/{noticia.id}/{noticia.nombre_noticia.replace(' ', '-').lower()}/"
