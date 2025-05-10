@@ -180,7 +180,8 @@ SIMPLE_JWT = {
 
 # CAMBIO PRINCIPAL: Desactivar redirección SSL ya que Nginx la maneja
 SECURE_SSL_REDIRECT = False
-
+PREPEND_WWW = False
+APPEND_SLASH = False  # Prueba esto temporalmente para ver si resuelve el problema
 # Mantener esta configuración para asegurar que Django reconozca correctamente
 # las solicitudes HTTPS que pasan por Nginx/Cloudflare
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
