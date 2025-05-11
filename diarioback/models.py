@@ -267,6 +267,7 @@ class Noticia(models.Model):
             ('gobierno', 'Gobierno'),
             ('provincias', 'Provincias'),
             ('capital', 'Capital'),
+            ('nacion', 'Nacion'),
             
         )),
         ('Cultura', (
@@ -277,6 +278,7 @@ class Noticia(models.Model):
             ('eventos', 'Eventos'),
             ('educacion', 'Educacion'),
             ('efemerides', 'Efemerides'),
+            ('deporte', 'Deporte'),
         )),
         ('Economia', (
             ('finanzas', 'Finanzas'),
@@ -286,7 +288,6 @@ class Noticia(models.Model):
             ('dolar', 'Dolar')
         )),
         ('Mundo', (
-            ('argentina', 'Argentina'),
             ('estados_unidos', 'Estados Unidos'),
             ('asia', 'Asia'),
             ('medio_oriente', 'Medio Oriente'),
@@ -499,6 +500,22 @@ class Noticia(models.Model):
             return []
         categories = value.split(',')
         invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS]
+        if invalid_cats:
+            raise ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
+        return value
+    @staticmethod
+    def validate_categorias(value):
+        """Temporary validator function that allows 'argentina' during transition"""
+        if not value:
+            return []
+        categories = value.split(',')
+        
+        # Lista temporal de categorías permitidas durante la transición
+        temp_allowed = ['argentina']  # Categorías obsoletas pero que aún existen en DB
+        
+        # Verificar solo categorías que no estén en la lista temporal
+        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS and cat not in temp_allowed]
+        
         if invalid_cats:
             raise ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
         return value
