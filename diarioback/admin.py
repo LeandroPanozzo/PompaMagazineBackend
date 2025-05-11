@@ -164,9 +164,9 @@ class NoticiaAdmin(admin.ModelAdmin):
     list_display = (
         'nombre_noticia', 
         'autor_link', 
-        'editor_en_jefe_link',  
+        'editores_en_jefe_links',  # Cambiado de editor_en_jefe_link
         'fecha_publicacion', 
-        'display_categorias',  # Change this line
+        'display_categorias',
         'solo_para_subscriptores', 
         'estado', 
         'contador_visitas',
@@ -200,9 +200,9 @@ class NoticiaAdmin(admin.ModelAdmin):
         ('Metadatos', {
             'fields': (
                 'autor', 
-                'editor_en_jefe', 
+                'editores_en_jefe',  # Cambiado de editor_en_jefe
                 'fecha_publicacion', 
-                'categoria', 
+                'categorias',  # Cambiado de categoria
                 'estado'
             )
         }),
@@ -230,16 +230,21 @@ class NoticiaAdmin(admin.ModelAdmin):
     inlines = [ComentarioInline]
 
     def visitas_ultimas_24h(self, obj):
-        return obj.visitas_ultimas_24h
+        return obj.visitas_ultima_semana  # Usando la propiedad existente para visitas de la última semana
     visitas_ultimas_24h.short_description = 'Visitas (24h)'
 
-    def editor_en_jefe_link(self, obj):
-        if obj.editor_en_jefe:
-            url = reverse('admin:auth_user_change', args=[obj.editor_en_jefe.user.id])
-            return format_html(f'<a href="{url}">{obj.editor_en_jefe}</a>')
-        return "No asignado"
+    def editores_en_jefe_links(self, obj):
+        """Muestra los enlaces a todos los editores en jefe asignados a esta noticia"""
+        links = []
+        for editor in obj.editores_en_jefe.all():
+            url = reverse('admin:auth_user_change', args=[editor.user.id])
+            links.append(format_html(f'<a href="{url}">{editor}</a>'))
+        
+        if links:
+            return format_html(', '.join(links))
+        return "No asignados"
     
-    editor_en_jefe_link.short_description = 'Editor en Jefe'
+    editores_en_jefe_links.short_description = 'Editores en Jefe'
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)

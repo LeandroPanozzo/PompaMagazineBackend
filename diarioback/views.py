@@ -124,7 +124,7 @@ class NoticiaViewSet(viewsets.ModelViewSet):
     def mas_vistas(self, request):
         hace_una_semana = timezone.now() - timedelta(days=7)
         noticias_mas_vistas = self.get_queryset().filter(
-            estado=3,
+            estado=3,  # Asegúrate de que este ID de estado sea correcto
             ultima_actualizacion_contador__gte=hace_una_semana
         ).order_by('-contador_visitas')[:10]
         
@@ -172,6 +172,7 @@ class NoticiaViewSet(viewsets.ModelViewSet):
             return Response({'success': True})
         except Trabajador.DoesNotExist:
             return Response({'error': 'Editor no encontrado'}, status=404)
+            
     @action(detail=False, methods=['post'])
     def upload_image(self, request):
         if 'image' not in request.FILES:
