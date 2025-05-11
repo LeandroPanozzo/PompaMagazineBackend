@@ -101,9 +101,90 @@ class PublicidadViewSet(viewsets.ModelViewSet):
     queryset = Publicidad.objects.all()
     serializer_class = PublicidadSerializer
 
+from rest_framework import viewsets, filters, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models import Q, Count
+from .models import Noticia, Trabajador
+from .serializers import NoticiaSerializer
+
+def upload_to_imgur(image):
+    # Implementación del servicio de subida a Imgur
+    pass
 class NoticiaViewSet(viewsets.ModelViewSet):
     queryset = Noticia.objects.all()
     serializer_class = NoticiaSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['fecha_publicacion', 'contador_visitas']
+    ordering = ['-fecha_publicacion']  # Default ordering
+
+    def get_queryset(self):
+        """
+        Customizes the queryset based on query parameters to support efficient filtering.
+        This avoids retrieving all records every time.
+        """
+        queryset = Noticia.objects.all()
+        
+        # Filter by estado (publication status)
+        estado = self.request.query_params.get('estado')
+        if estado:
+            queryset = queryset.filter(estado=estado)
+        
+        # Filter by categoria (one or multiple categories)
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            # Check if it's a comma-separated list
+            categorias = categoria.split(',')
+            if len(categorias) > 1:
+                # Create a complex query for multiple categories
+                category_query = Q()
+                for cat in categorias:
+                    category_query |= Q(categorias__contains=cat)
+                queryset = queryset.filter(category_query)
+            else:
+                # Simple single category filter
+                queryset = queryset.filter(categorias__contains=categoria)
+        
+        # Filter by date range
+        fecha_desde = self.request.query_params.get('fecha_desde')
+        if fecha_desde:
+            queryset = queryset.filter(fecha_publicacion__gte=fecha_desde)
+            
+        fecha_hasta = self.request.query_params.get('fecha_hasta')
+        if fecha_hasta:
+            queryset = queryset.filter(fecha_publicacion__lte=fecha_hasta)
+        
+        # Include author and editor information if requested
+        include_autor = self.request.query_params.get('include_autor')
+        include_editor = self.request.query_params.get('include_editor')
+        
+        # Note: In a real implementation, you would use prefetch_related and select_related
+        # here to optimize the query instead of making additional queries for each article
+        
+        # IMPORTANT: Removed the limit slicing from here since it conflicts with ordering
+        # The limit will be applied after ordering in list() and other methods
+            
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Override list method to apply limit after ordering"""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Apply limit from request params after filtering and ordering
+        limit = self.request.query_params.get('limit')
+        if limit and limit.isdigit():
+            queryset = queryset[:int(limit)]
+        
+        # Use pagination if configured and not explicitly limited
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -122,23 +203,77 @@ class NoticiaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def mas_vistas(self, request):
+        """
+        Return the most viewed news from the past week.
+        Optimized to limit results and preload related data.
+        """
+        # Get limit from query params or default to 10
+        limit = request.query_params.get('limit', 10)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 10
+            
+        # Calculate one week ago
         hace_una_semana = timezone.now() - timedelta(days=7)
-        noticias_mas_vistas = self.get_queryset().filter(
-            estado=3,  # Asegúrate de que este ID de estado sea correcto
+        
+        # Filter by estado and date, order by visit count
+        # Don't slice here, wait until all filtering and ordering is done
+        noticias_mas_vistas = self.queryset.filter(
+            estado=3,  # Published status
             ultima_actualizacion_contador__gte=hace_una_semana
-        ).order_by('-contador_visitas')[:10]
+        ).order_by('-contador_visitas')
+        
+        # Apply limit after all ordering is done
+        noticias_mas_vistas = noticias_mas_vistas[:limit]
+        
+        # Optimize with prefetch_related if needed
+        # noticias_mas_vistas = noticias_mas_vistas.prefetch_related('autor', 'editores_en_jefe')
         
         serializer = self.get_serializer(noticias_mas_vistas, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def por_categoria(self, request):
+        """
+        Return news filtered by one or more categories.
+        Support for comma-separated category list.
+        """
+        # Get the category parameter
         categoria = request.query_params.get('categoria')
-        queryset = self.get_queryset()
+        if not categoria:
+            return Response({"error": "Se requiere el parámetro 'categoria'"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Check if it's a comma-separated list
+        categorias = categoria.split(',')
         
-        if categoria:
-            # Busca noticias donde la categoría esté en la lista de categorías
+        # Get estado filter (default to published)
+        estado = request.query_params.get('estado', 3)
+        
+        # Get limit from query params or default
+        limit = request.query_params.get('limit')
+        
+        # Base queryset filtered by estado
+        queryset = self.queryset.filter(estado=estado)
+        
+        # Apply category filtering
+        if len(categorias) > 1:
+            # Complex query for multiple categories
+            category_query = Q()
+            for cat in categorias:
+                if cat.strip():  # Skip empty strings
+                    category_query |= Q(categorias__contains=cat.strip())
+            queryset = queryset.filter(category_query)
+        else:
+            # Simple single category filter
             queryset = queryset.filter(categorias__contains=categoria)
+            
+        # Apply ordering by publication date first
+        queryset = queryset.order_by('-fecha_publicacion')
+        
+        # Apply limit AFTER ordering
+        if limit and limit.isdigit():
+            queryset = queryset[:int(limit)]
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -149,14 +284,14 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         editor_id = request.data.get('editor_id')
         
         if not editor_id:
-            return Response({'error': 'Se requiere un ID de editor'}, status=400)
+            return Response({'error': 'Se requiere un ID de editor'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
             editor = Trabajador.objects.get(pk=editor_id)
             noticia.editores_en_jefe.add(editor)
             return Response({'success': True})
         except Trabajador.DoesNotExist:
-            return Response({'error': 'Editor no encontrado'}, status=404)
+            return Response({'error': 'Editor no encontrado'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=True, methods=['post'])
     def eliminar_editor(self, request, pk=None):
@@ -164,19 +299,19 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         editor_id = request.data.get('editor_id')
         
         if not editor_id:
-            return Response({'error': 'Se requiere un ID de editor'}, status=400)
+            return Response({'error': 'Se requiere un ID de editor'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
             editor = Trabajador.objects.get(pk=editor_id)
             noticia.editores_en_jefe.remove(editor)
             return Response({'success': True})
         except Trabajador.DoesNotExist:
-            return Response({'error': 'Editor no encontrado'}, status=404)
+            return Response({'error': 'Editor no encontrado'}, status=status.HTTP_404_NOT_FOUND)
             
     @action(detail=False, methods=['post'])
     def upload_image(self, request):
         if 'image' not in request.FILES:
-            return Response({'error': 'No image file found'}, status=400)
+            return Response({'error': 'No image file found'}, status=status.HTTP_400_BAD_REQUEST)
             
         image = request.FILES['image']
         
@@ -184,7 +319,7 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         if not image.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
             return Response({
                 'error': 'Tipo de archivo no soportado. Por favor suba una imagen PNG, JPG, JPEG o GIF.'
-            }, status=400)
+            }, status=status.HTTP_400_BAD_REQUEST)
             
         # Subir directamente a Imgur en lugar de almacenar localmente
         uploaded_url = upload_to_imgur(image)
@@ -198,7 +333,7 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         else:
             return Response({
                 'error': 'Error al subir la imagen a Imgur'
-            }, status=500)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 User = get_user_model()
 
 # Vista para el registro de usuarios

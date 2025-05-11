@@ -182,8 +182,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
         many=True
     )
     estado = serializers.PrimaryKeyRelatedField(queryset=EstadoPublicacion.objects.all())
-    # Cambio principal: categorias como campo personalizado
-     # Define categorias as a string field that will be validated against allowed categories
+    # Define categorias as a string field that will be validated against allowed categories
     categorias = serializers.CharField(
         required=False, 
         allow_blank=True,
@@ -199,6 +198,10 @@ class NoticiaSerializer(serializers.ModelSerializer):
     imagen_5 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
     imagen_6 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
 
+    # Add autorData and editorData fields for easier frontend access
+    autorData = serializers.SerializerMethodField(read_only=True)
+    editoresData = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Noticia
         fields = [
@@ -208,31 +211,39 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'imagen_4', 'imagen_5', 'imagen_6', 
             'estado', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 
-            'conteo_reacciones', 'contador_visitas', 'visitas_semana'
+            'conteo_reacciones', 'contador_visitas', 'visitas_semana',
+            'autorData', 'editoresData'
         ]
 
     def get_conteo_reacciones(self, obj):
         return obj.get_conteo_reacciones()
 
-    
-
-    def get_imagen_1(self, obj):
-        return obj.imagen_1
-
-    def get_imagen_2(self, obj):
-        return obj.imagen_2
-
-    def get_imagen_3(self, obj):
-        return obj.imagen_3
-
-    def get_imagen_4(self, obj):
-        return obj.imagen_4
-
-    def get_imagen_5(self, obj):
-        return obj.imagen_5
-
-    def get_imagen_6(self, obj):
-        return obj.imagen_6
+    def get_autorData(self, obj):
+        """Return author data if include_autor was requested"""
+        if hasattr(self.context.get('request'), 'query_params'):
+            include_autor = self.context.get('request').query_params.get('include_autor')
+            if include_autor and include_autor.lower() == 'true':
+                if obj.autor:
+                    return {
+                        'id': obj.autor.id,
+                        'nombre': obj.autor.nombre,
+                        'apellido': obj.autor.apellido,
+                        'cargo': getattr(obj.autor, 'cargo', None),
+                    }
+        return None
+        
+    def get_editoresData(self, obj):
+        """Return editors data if include_editor was requested"""
+        if hasattr(self.context.get('request'), 'query_params'):
+            include_editor = self.context.get('request').query_params.get('include_editor')
+            if include_editor and include_editor.lower() == 'true':
+                return [{
+                    'id': editor.id,
+                    'nombre': editor.nombre,
+                    'apellido': editor.apellido,
+                    'cargo': getattr(editor, 'cargo', None),
+                } for editor in obj.editores_en_jefe.all()]
+        return None
 
     def create(self, validated_data):
         # Ensure ID is not in the data
@@ -265,16 +276,24 @@ class NoticiaSerializer(serializers.ModelSerializer):
         # Debug log to verify the created instance
         print("Created Noticia:", noticia)
         return noticia
+
     def to_internal_value(self, data):
         if 'categorias' in data and isinstance(data['categorias'], list):
             data['categorias'] = ','.join(data['categorias'])
         return super().to_internal_value(data)
 
     def validate_categorias(self, value):
+        """Validate categories against allowed list with support for legacy categories"""
         if not value:
             return ''
         categories = value.split(',')
-        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS]
+        
+        # Lista temporal de categorías permitidas durante la transición
+        temp_allowed = ['argentina']  # Categorías obsoletas pero que aún existen en DB
+        
+        # Verificar solo categorías que no estén en la lista temporal
+        invalid_cats = [cat for cat in categories if cat not in Noticia.FLAT_CATEGORIAS and cat not in temp_allowed]
+        
         if invalid_cats:
             raise serializers.ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
         return value
