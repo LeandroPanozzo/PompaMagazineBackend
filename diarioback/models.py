@@ -369,9 +369,11 @@ class Noticia(models.Model):
         if self.categorias:
             self.categorias = Noticia.validate_categorias(self.categorias)
         
-        # Handle slug creation
+        # Handle slug creation - AQUÍ ESTÁ LA MODIFICACIÓN
         if not self.slug:
-            self.slug = slugify(self.nombre_noticia)
+            # Limitar el título a 40 caracteres antes de slugificar para evitar slugs demasiado largos
+            truncated_title = self.nombre_noticia[:40] if len(self.nombre_noticia) > 40 else self.nombre_noticia
+            self.slug = slugify(truncated_title)
             original_slug = self.slug
             count = 1
             while Noticia.objects.filter(slug=self.slug).exists():
@@ -386,7 +388,7 @@ class Noticia(models.Model):
             except Noticia.DoesNotExist:
                 pass
 
-       # Guarda primero para obtener un ID si es objeto nuevo
+        # Guarda primero para obtener un ID si es objeto nuevo
         super().save(*args, **kwargs)
         
         # Procesar imágenes y subir a Imgur
