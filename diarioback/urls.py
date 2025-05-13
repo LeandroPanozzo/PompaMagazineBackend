@@ -1,33 +1,40 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
-from .views import ComentarioListCreateAPIView, CommentDeleteView, RegisterView, LoginView, RequestPasswordResetView, ResetPasswordView, UserProfileView, EstadoPublicacionList, TrabajadorList, VerifyTokenView, upload_image
+from . import views
 from .views import (
-    RolViewSet, 
-    TrabajadorViewSet, 
-    UsuarioViewSet, 
-    NoticiaViewSet, 
-    ComentarioViewSet, 
-    EstadoPublicacionViewSet, 
-    ImagenViewSet, 
+    RolViewSet,
+    TrabajadorViewSet,
+    UsuarioViewSet,
+    NoticiaViewSet,
+    ComentarioViewSet,
+    EstadoPublicacionViewSet,
+    ImagenViewSet,
     PublicidadViewSet,
     AdminViewSet,
-    UserrViewSet, 
-    redirect_to_home,  # Importa la vista de redirección
-    CurrentUserView, 
+    UserrViewSet,
+    redirect_to_home,
+    CurrentUserView,
+    ComentarioListCreateAPIView,
+    CommentDeleteView,
+    RegisterView,
+    LoginView,
+    RequestPasswordResetView,
+    ResetPasswordView,
+    UserProfileView,
+    EstadoPublicacionList,
+    TrabajadorList,
+    VerifyTokenView,
+    upload_image
 )
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from . import views
-# Crear un router y registrar todos los viewsets
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from . import views
 
+# Crear un router y registrar todos los viewsets
 router = DefaultRouter()
 router.register(r'roles', RolViewSet)
-router.register(r'users', UserrViewSet, basename='user')  # Asegúrate de que 'user' no esté duplicado
+router.register(r'users', UserrViewSet, basename='user')
 router.register(r'admin', AdminViewSet, basename='admin')
 router.register(r'trabajadores', TrabajadorViewSet)
 router.register(r'usuarios', UsuarioViewSet)
@@ -35,11 +42,11 @@ router.register(r'estados', EstadoPublicacionViewSet)
 router.register(r'comentarios', ComentarioViewSet)
 router.register(r'imagenes', ImagenViewSet)
 router.register(r'publicidades', PublicidadViewSet)
-router.register(r'noticias', NoticiaViewSet, basename='noticias')  # Registrar el NoticiaViewSet aquí
+router.register(r'noticias', NoticiaViewSet, basename='noticias')
 
 urlpatterns = [
-    path('', redirect_to_home, name='redirect_to_home'),  # Redirige la ruta raíz
-    path('', include(router.urls)),  # Incluye todas las rutas generadas por el router
+    path('', redirect_to_home, name='redirect_to_home'),
+    path('', include(router.urls)),
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
     path('user-profile/', UserProfileView.as_view(), name='user-profile'),
@@ -51,14 +58,23 @@ urlpatterns = [
     path('upload/', upload_image, name='upload_image'),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    # Nueva ruta para actualizar perfil de trabajador
     path('user-profile/', UserProfileView.as_view(), name='update_trabajador_profile'),
     path('noticias/<int:id>/reacciones/', views.reacciones_noticia, name='reacciones_noticia'),
     path('noticias/<int:id>/mi-reaccion/', views.mi_reaccion, name='mi_reaccion'),
-    path('diarioback/noticias/mas-vistas/', views.NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
+    
+    # URLs específicas para las secciones de noticias
+    path('noticias/mas-vistas/', NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
+    path('noticias/recientes/', NoticiaViewSet.as_view({'get': 'recientes'}), name='noticias-recientes'),
+    path('noticias/destacadas/', NoticiaViewSet.as_view({'get': 'destacadas'}), name='noticias-destacadas'),
+    path('noticias/politica/', NoticiaViewSet.as_view({'get': 'politica'}), name='noticias-politica'),
+    path('noticias/cultura/', NoticiaViewSet.as_view({'get': 'cultura'}), name='noticias-cultura'),
+    path('noticias/economia/', NoticiaViewSet.as_view({'get': 'economia'}), name='noticias-economia'),
+    path('noticias/mundo/', NoticiaViewSet.as_view({'get': 'mundo'}), name='noticias-mundo'),
+    path('noticias/tipos-notas/', NoticiaViewSet.as_view({'get': 'tipos_notas'}), name='noticias-tipos-notas'),
+    path('noticias/por-categoria/', NoticiaViewSet.as_view({'get': 'por_categoria'}), name='noticias-por-categoria'),
+    
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('password/reset/request/', RequestPasswordResetView.as_view(), name='password-reset-request'),
     path('password/reset/verify/', VerifyTokenView.as_view(), name='password-reset-verify'),
     path('password/reset/confirm/', ResetPasswordView.as_view(), name='password-reset-confirm'),
 ]
-

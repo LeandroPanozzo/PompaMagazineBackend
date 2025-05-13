@@ -234,6 +234,144 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
+    def recientes(self, request):
+        """
+        Return the most recent news.
+        """
+        # Get limit from query params or default to 5
+        limit = request.query_params.get('limit', 5)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 5
+            
+        # Filter by estado, order by publication date
+        noticias_recientes = self.queryset.filter(
+            estado=3  # Published status
+        ).order_by('-fecha_publicacion')
+        
+        # Apply limit after ordering
+        noticias_recientes = noticias_recientes[:limit]
+        
+        serializer = self.get_serializer(noticias_recientes, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def destacadas(self, request):
+        """
+        Return featured news for the carousel.
+        """
+        # Get limit from query params or default to 12 (for 4 slides with 3 articles each)
+        limit = request.query_params.get('limit', 12)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 12
+            
+        # Filter by estado, order by publication date to get the most recent
+        noticias_destacadas = self.queryset.filter(
+            estado=3  # Published status
+        ).order_by('-fecha_publicacion')
+        
+        # Apply limit after ordering
+        noticias_destacadas = noticias_destacadas[:limit]
+        
+        serializer = self.get_serializer(noticias_destacadas, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def politica(self, request):
+        """
+        Return news from the Politics section.
+        """
+        # Categories defined for Politics
+        politica_categories = [
+            'nacion', 'legislativos', 'policiales', 
+            'elecciones', 'gobierno', 'provincias', 'capital'
+        ]
+        
+        return self._get_section_news(request, politica_categories)
+
+    @action(detail=False, methods=['get'])
+    def cultura(self, request):
+        """
+        Return news from the Culture section.
+        """
+        # Categories defined for Culture
+        cultura_categories = [
+            'cine', 'literatura', 'salud', 'tecnologia', 
+            'eventos', 'educacion', 'efemerides', 'deporte'
+        ]
+        
+        return self._get_section_news(request, cultura_categories)
+
+    @action(detail=False, methods=['get'])
+    def economia(self, request):
+        """
+        Return news from the Economy section.
+        """
+        # Categories defined for Economy
+        economia_categories = [
+            'finanzas', 'comercio_internacional', 'politica_economica', 
+            'dolar', 'pobreza_e_inflacion'
+        ]
+        
+        return self._get_section_news(request, economia_categories)
+
+    @action(detail=False, methods=['get'])
+    def mundo(self, request):
+        """
+        Return news from the World section.
+        """
+        # Categories defined for World
+        mundo_categories = [
+            'estados_unidos', 'asia', 'medio_oriente', 
+            'internacional', 'latinoamerica'
+        ]
+        
+        return self._get_section_news(request, mundo_categories)
+
+    @action(detail=False, methods=['get'])
+    def tipos_notas(self, request):
+        """
+        Return news by note types.
+        """
+        # Categories defined for note types
+        tipos_categories = [
+            'de_analisis', 'de_opinion', 'informativas', 'entrevistas'
+        ]
+        
+        return self._get_section_news(request, tipos_categories)
+
+    def _get_section_news(self, request, categories):
+        """
+        Helper method to get news for a specific section by categories.
+        """
+        # Get limit from query params or default to 7
+        limit = request.query_params.get('limit', 7)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 7
+            
+        # Create category query
+        category_query = Q()
+        for cat in categories:
+            category_query |= Q(categorias__contains=cat)
+            
+        # Filter by estado and categories, order by publication date
+        section_news = self.queryset.filter(
+            category_query,
+            estado=3  # Published status
+        ).order_by('-fecha_publicacion')
+        
+        # Apply limit after all filtering and ordering
+        section_news = section_news[:limit]
+        
+        serializer = self.get_serializer(section_news, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
     def por_categoria(self, request):
         """
         Return news filtered by one or more categories.
