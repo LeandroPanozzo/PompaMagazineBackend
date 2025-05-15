@@ -369,9 +369,23 @@ class Noticia(models.Model):
         if self.categorias:
             self.categorias = Noticia.validate_categorias(self.categorias)
         
-        # Handle slug creation - AQUÍ ESTÁ LA MODIFICACIÓN
-        if not self.slug:
-            # Limitar el título a 40 caracteres antes de slugificar para evitar slugs demasiado largos
+        # Verificar si el objeto existe y si el título ha cambiado
+        if self.pk:
+            try:
+                old_instance = Noticia.objects.get(pk=self.pk)
+                if old_instance.nombre_noticia != self.nombre_noticia:
+                    # El título ha cambiado, actualizar el slug
+                    truncated_title = self.nombre_noticia[:100] if len(self.nombre_noticia) > 100 else self.nombre_noticia
+                    self.slug = slugify(truncated_title)
+                    original_slug = self.slug
+                    count = 1
+                    while Noticia.objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
+                        self.slug = f"{original_slug}-{count}"
+                        count += 1
+            except Noticia.DoesNotExist:
+                pass
+        else:
+            # Es un objeto nuevo, generar el slug
             truncated_title = self.nombre_noticia[:100] if len(self.nombre_noticia) > 100 else self.nombre_noticia
             self.slug = slugify(truncated_title)
             original_slug = self.slug
@@ -380,23 +394,14 @@ class Noticia(models.Model):
                 self.slug = f"{original_slug}-{count}"
                 count += 1
 
-        # Get the old instance if it exists
-        old_instance = None
-        if self.pk:  # Only if the instance already exists
-            try:
-                old_instance = Noticia.objects.get(pk=self.pk)
-            except Noticia.DoesNotExist:
-                pass
-
         # Guarda primero para obtener un ID si es objeto nuevo
         super().save(*args, **kwargs)
         
         # Procesar imágenes y subir a Imgur
-        images_updated = self._process_images(old_instance)
+        images_updated = self._process_images(old_instance if 'old_instance' in locals() else None)
         
         # Solo guardar nuevamente si se actualizaron las imágenes
         if images_updated:
-            # Nota: No filtrar los campos de update_fields, guarda todos los cambios
             super().save()
     
     def _process_images(self, old_instance=None):
