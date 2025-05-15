@@ -109,6 +109,7 @@ from datetime import timedelta
 from django.db.models import Q, Count
 from .models import Noticia, Trabajador
 from .serializers import NoticiaSerializer
+from django.shortcuts import get_object_or_404
 
 def upload_to_imgur(image):
     # Implementación del servicio de subida a Imgur
@@ -119,7 +120,8 @@ class NoticiaViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['fecha_publicacion', 'contador_visitas']
     ordering = ['-fecha_publicacion']  # Default ordering
-
+    lookup_field = 'pk'  # Default lookup field
+    lookup_value_regex = r'[0-9]+(?:-[a-zA-Z0-9-_]+)?'  # Accept both ID and ID-slug formats
     def get_queryset(self):
         """
         Customizes the queryset based on query parameters to support efficient filtering.
@@ -445,6 +447,31 @@ class NoticiaViewSet(viewsets.ModelViewSet):
             return Response({'success': True})
         except Trabajador.DoesNotExist:
             return Response({'error': 'Editor no encontrado'}, status=status.HTTP_404_NOT_FOUND)
+    # Permite buscar por slug además de por id
+    lookup_field = 'pk'  # Mantiene pk como campo principal para compatibilidad
+    
+    def get_object(self):
+        """
+        Retrieve the object with support for pk or pk-slug format in the URL.
+        """
+        # Get the pk value from the URL (which might be in the format 'id-slug')
+        pk_value = self.kwargs.get(self.lookup_field)
+        
+        # If it's in 'id-slug' format, extract the actual ID
+        if pk_value and '-' in pk_value:
+            pk = pk_value.split('-')[0]
+        else:
+            pk = pk_value
+            
+        # Do not filter by slug here, as we've already extracted the ID
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Get the object using just the ID
+        obj = get_object_or_404(queryset, pk=pk)
+        
+        # Check object permissions
+        self.check_object_permissions(self.request, obj)
+        return obj
             
     @action(detail=False, methods=['post'])
     def upload_image(self, request):

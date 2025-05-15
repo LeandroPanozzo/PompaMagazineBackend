@@ -372,7 +372,7 @@ class Noticia(models.Model):
         # Handle slug creation - AQUÍ ESTÁ LA MODIFICACIÓN
         if not self.slug:
             # Limitar el título a 40 caracteres antes de slugificar para evitar slugs demasiado largos
-            truncated_title = self.nombre_noticia[:40] if len(self.nombre_noticia) > 40 else self.nombre_noticia
+            truncated_title = self.nombre_noticia[:100] if len(self.nombre_noticia) > 100 else self.nombre_noticia
             self.slug = slugify(truncated_title)
             original_slug = self.slug
             count = 1
@@ -449,7 +449,7 @@ class Noticia(models.Model):
         return f'{self.nombre_noticia} - {self.estado}'
 
     def get_absolute_url(self):
-        return f'/noticias/{self.slug}/'
+        return f'/noticias/{self.pk}-{self.slug}/'
 
     def get_image_urls(self):
         """Retorna una lista de todas las URLs de imágenes disponibles."""

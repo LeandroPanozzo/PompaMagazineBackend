@@ -1,5 +1,5 @@
 from rest_framework.routers import DefaultRouter
-from django.urls import path, include
+from django.urls import path, include, re_path
 from . import views
 from .views import (
     RolViewSet,
@@ -53,6 +53,15 @@ urlpatterns = [
     path('estados-publicacion/', EstadoPublicacionList.as_view(), name='estado-publicacion-list'),
     path('trabajadores/', TrabajadorList.as_view(), name='trabajador-list'),
     path('upload_image/', NoticiaViewSet.as_view({'post': 'upload_image'}), name='upload_image'),
+    
+    # URL para detalle de noticia con ID y slug
+    re_path(r'^noticias/(?P<pk>\d+)-(?P<slug>[\w-]+)/$', 
+        NoticiaViewSet.as_view({'get': 'retrieve'}), 
+        name='noticia-detail'),
+    
+    # Mantén la URL original solo con ID para compatibilidad
+    path('noticias/<int:pk>/', NoticiaViewSet.as_view({'get': 'retrieve'}), name='noticia-detail-id-only'),
+    
     path('noticias/<int:noticia_id>/comentarios/', ComentarioViewSet.as_view({'get': 'list', 'post': 'create'}), name='comentarios'),
     path('noticias/<int:noticia_id>/comentarios/<int:comment_id>/', ComentarioViewSet.as_view({'delete': 'destroy'}), name='delete_comentario'),
     path('upload/', upload_image, name='upload_image'),

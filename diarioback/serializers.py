@@ -190,7 +190,9 @@ class NoticiaSerializer(serializers.ModelSerializer):
     )
     visitas_semana = serializers.IntegerField(source='visitas_ultima_semana', read_only=True)
     conteo_reacciones = serializers.SerializerMethodField()
-
+    # Añadir campos para URL y slug
+    url = serializers.SerializerMethodField(read_only=True)
+    slug = serializers.CharField(read_only=True)
     imagen_1 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
     imagen_2 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
     imagen_3 = serializers.URLField(allow_blank=True, required=False, allow_null=True)
@@ -212,9 +214,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'estado', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 
             'conteo_reacciones', 'contador_visitas', 'visitas_semana',
-            'autorData', 'editoresData'
+            'autorData', 'editoresData', 'url', 'slug'  # Incluir nuevos campos
         ]
-
+    def get_url(self, obj):
+        """Devuelve la URL amigable con el slug"""
+        return obj.get_absolute_url()
     def get_conteo_reacciones(self, obj):
         return obj.get_conteo_reacciones()
 
@@ -269,10 +273,9 @@ class NoticiaSerializer(serializers.ModelSerializer):
         if editores_en_jefe:
             noticia.editores_en_jefe.set(editores_en_jefe)
 
-        # Generate URL for the new Noticia
-        noticia.url = f"/noticia/{noticia.id}/{noticia.nombre_noticia.replace(' ', '-').lower()}/"
-        noticia.save()
-
+        # No necesitamos generar la URL aquí, ya que se hace automáticamente
+        # en el método save() del modelo a través del método get_absolute_url()
+        
         # Debug log to verify the created instance
         print("Created Noticia:", noticia)
         return noticia
