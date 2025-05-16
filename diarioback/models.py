@@ -338,7 +338,7 @@ class Noticia(models.Model):
         blank=True,
         verbose_name="Editores en jefe"
     )
-    nombre_noticia = models.CharField(max_length=255)
+    nombre_noticia = models.CharField(max_length=500)
     fecha_publicacion = models.DateField()
     url = models.URLField(max_length=200, blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, editable=False)
