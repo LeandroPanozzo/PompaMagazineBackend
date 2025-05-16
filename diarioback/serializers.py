@@ -216,9 +216,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'conteo_reacciones', 'contador_visitas', 'visitas_semana',
             'autorData', 'editoresData', 'url', 'slug'  # Incluir nuevos campos
         ]
+
     def get_url(self, obj):
         """Devuelve la URL amigable con el slug"""
         return obj.get_absolute_url()
+
     def get_conteo_reacciones(self, obj):
         return obj.get_conteo_reacciones()
 
@@ -249,6 +251,31 @@ class NoticiaSerializer(serializers.ModelSerializer):
                 } for editor in obj.editores_en_jefe.all()]
         return None
 
+    def to_internal_value(self, data):
+        """
+        Sobrescribe to_internal_value para manejar correctamente las comillas en el título
+        y otros posibles problemas de caracteres especiales
+        """
+        # Si es un QueryDict o similar, convertir a dict normal
+        if hasattr(data, 'dict'):
+            data = data.dict()
+        
+        # Crear una copia mutable de los datos
+        mutable_data = data.copy() if isinstance(data, dict) else {}
+        
+        # Asegurarse de que nombre_noticia sea tratado correctamente
+        if 'nombre_noticia' in mutable_data:
+            # No es necesario hacer un escape adicional, 
+            # el serializador debería manejar los caracteres correctamente
+            pass
+        
+        # Manejar las categorias si están en formato lista
+        if 'categorias' in mutable_data and isinstance(mutable_data['categorias'], list):
+            mutable_data['categorias'] = ','.join(mutable_data['categorias'])
+        
+        # Procesar el resto de los datos normalmente
+        return super().to_internal_value(mutable_data)
+
     def create(self, validated_data):
         # Ensure ID is not in the data
         validated_data.pop('id', None)
@@ -272,18 +299,10 @@ class NoticiaSerializer(serializers.ModelSerializer):
         # Ahora asignamos los editores_en_jefe usando el método set()
         if editores_en_jefe:
             noticia.editores_en_jefe.set(editores_en_jefe)
-
-        # No necesitamos generar la URL aquí, ya que se hace automáticamente
-        # en el método save() del modelo a través del método get_absolute_url()
         
         # Debug log to verify the created instance
         print("Created Noticia:", noticia)
         return noticia
-
-    def to_internal_value(self, data):
-        if 'categorias' in data and isinstance(data['categorias'], list):
-            data['categorias'] = ','.join(data['categorias'])
-        return super().to_internal_value(data)
 
     def validate_categorias(self, value):
         """Validate categories against allowed list with support for legacy categories"""
@@ -308,12 +327,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Debug log to verify validated data
-         # Debug log to verify validated data
         print("Validated Data in update:", validated_data)
         
         # Extract editores_en_jefe separately as it's a many-to-many field
         editores = validated_data.pop('editores_en_jefe', None)
-        editores = validated_data.pop('editores_en_jefe', None)
+        
         # Ensure categorias is properly formatted
         categorias = validated_data.get('categorias', '')
         if categorias and isinstance(categorias, list):
@@ -326,7 +344,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'nombre_noticia', 'fecha_publicacion', 'categorias', 
             'Palabras_clave', 'subtitulo', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 'estado', 
-            'autor', 'editores_en_jefe'
+            'autor'
         ]
         for field in fields_to_update:
             if field in validated_data:
@@ -338,15 +356,13 @@ class NoticiaSerializer(serializers.ModelSerializer):
             image_url = validated_data.get(field_name)
             if image_url:
                 setattr(instance, field_name, image_url)
-        # Update simple fields directly from validated_data
-        for field, value in validated_data.items():
-            if hasattr(instance, field):
-                setattr(instance, field, value)
+        
         # Actualiza los editores si se proporcionaron
         if editores is not None:
             # Limpia los editores existentes y añade los nuevos
             instance.editores_en_jefe.clear()
             instance.editores_en_jefe.add(*editores)
+        
         # Save the updated instance
         instance.save()
 
