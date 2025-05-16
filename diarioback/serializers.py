@@ -308,7 +308,11 @@ class NoticiaSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Debug log to verify validated data
+         # Debug log to verify validated data
         print("Validated Data in update:", validated_data)
+        
+        # Extract editores_en_jefe separately as it's a many-to-many field
+        editores = validated_data.pop('editores_en_jefe', None)
         editores = validated_data.pop('editores_en_jefe', None)
         # Ensure categorias is properly formatted
         categorias = validated_data.get('categorias', '')
@@ -322,7 +326,7 @@ class NoticiaSerializer(serializers.ModelSerializer):
             'nombre_noticia', 'fecha_publicacion', 'categorias', 
             'Palabras_clave', 'subtitulo', 'solo_para_subscriptores', 
             'contenido', 'tiene_comentarios', 'estado', 
-            'autor', 'editor_en_jefe'
+            'autor', 'editores_en_jefe'
         ]
         for field in fields_to_update:
             if field in validated_data:
@@ -334,6 +338,10 @@ class NoticiaSerializer(serializers.ModelSerializer):
             image_url = validated_data.get(field_name)
             if image_url:
                 setattr(instance, field_name, image_url)
+        # Update simple fields directly from validated_data
+        for field, value in validated_data.items():
+            if hasattr(instance, field):
+                setattr(instance, field, value)
         # Actualiza los editores si se proporcionaron
         if editores is not None:
             # Limpia los editores existentes y añade los nuevos
