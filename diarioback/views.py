@@ -453,20 +453,21 @@ class NoticiaViewSet(viewsets.ModelViewSet):
     def get_object(self):
         """
         Retrieve the object with support for pk or pk-slug format in the URL.
+        This version specifically handles long slugs.
         """
         # Get the pk value from the URL (which might be in the format 'id-slug')
         pk_value = self.kwargs.get(self.lookup_field)
         
-        # If it's in 'id-slug' format, extract the actual ID
+        # If it's in 'id-slug' format, extract just the numeric ID part
         if pk_value and '-' in pk_value:
-            pk = pk_value.split('-')[0]
+            # Split by the first hyphen only to get the ID
+            pk_parts = pk_value.split('-', 1)
+            pk = pk_parts[0]
         else:
             pk = pk_value
-            
-        # Do not filter by slug here, as we've already extracted the ID
-        queryset = self.filter_queryset(self.get_queryset())
         
         # Get the object using just the ID
+        queryset = self.filter_queryset(self.get_queryset())
         obj = get_object_or_404(queryset, pk=pk)
         
         # Check object permissions

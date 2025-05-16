@@ -341,7 +341,8 @@ class Noticia(models.Model):
     nombre_noticia = models.CharField(max_length=500)
     fecha_publicacion = models.DateField()
     url = models.URLField(max_length=200, blank=True, null=True)
-    slug = models.SlugField(unique=True, blank=True, editable=False)
+    # Modificar la definición del slug para permitir slugs más largos (300 caracteres)
+    slug = models.SlugField(max_length=300, unique=True, blank=True, editable=False)
     contador_visitas = models.PositiveIntegerField(default=0)
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     Palabras_clave = models.CharField(max_length=200)
@@ -375,8 +376,8 @@ class Noticia(models.Model):
                 old_instance = Noticia.objects.get(pk=self.pk)
                 if old_instance.nombre_noticia != self.nombre_noticia:
                     # El título ha cambiado, actualizar el slug
-                    truncated_title = self.nombre_noticia[:100] if len(self.nombre_noticia) > 100 else self.nombre_noticia
-                    self.slug = slugify(truncated_title)
+                    # Ya no truncamos el título a 100 caracteres
+                    self.slug = slugify(self.nombre_noticia)
                     original_slug = self.slug
                     count = 1
                     while Noticia.objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
@@ -386,8 +387,8 @@ class Noticia(models.Model):
                 pass
         else:
             # Es un objeto nuevo, generar el slug
-            truncated_title = self.nombre_noticia[:100] if len(self.nombre_noticia) > 100 else self.nombre_noticia
-            self.slug = slugify(truncated_title)
+            # Ya no truncamos el título a 100 caracteres
+            self.slug = slugify(self.nombre_noticia)
             original_slug = self.slug
             count = 1
             while Noticia.objects.filter(slug=self.slug).exists():
@@ -510,6 +511,7 @@ class Noticia(models.Model):
         if invalid_cats:
             raise ValidationError(f'Invalid categories: {", ".join(invalid_cats)}')
         return value
+    
     @staticmethod
     def validate_categorias(value):
         """Temporary validator function that allows 'argentina' during transition"""
