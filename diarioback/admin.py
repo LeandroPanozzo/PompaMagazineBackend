@@ -164,13 +164,12 @@ class NoticiaAdmin(admin.ModelAdmin):
     list_display = (
         'nombre_noticia', 
         'autor_link', 
-        'editores_en_jefe_links',  # Cambiado de editor_en_jefe_link
+        'editores_en_jefe_links',
         'fecha_publicacion', 
         'display_categorias',
         'solo_para_subscriptores', 
         'estado', 
-        'contador_visitas',
-        'visitas_ultimas_24h',
+        'visitas_totales',        # Solo visitas totales
         'icono_comentarios'
     )
     
@@ -185,8 +184,17 @@ class NoticiaAdmin(admin.ModelAdmin):
         return obj.categorias
     display_categorias.short_description = 'Categorías'
     
+    def visitas_totales(self, obj):
+        """Muestra el total histórico de visitas"""
+        return obj.contador_visitas_total
+    visitas_totales.short_description = 'Visitas Total'
+    visitas_totales.admin_order_field = 'contador_visitas_total'  # Permite ordenar por esta columna
+    
     search_fields = ('nombre_noticia', 'Palabras_clave')
     date_hierarchy = 'fecha_publicacion'
+    
+    # Ordenamiento por defecto por visitas totales
+    ordering = ['-contador_visitas_total']
     
     fieldsets = (
         ('Información Principal', {
@@ -200,11 +208,17 @@ class NoticiaAdmin(admin.ModelAdmin):
         ('Metadatos', {
             'fields': (
                 'autor', 
-                'editores_en_jefe',  # Cambiado de editor_en_jefe
+                'editores_en_jefe',
                 'fecha_publicacion', 
-                'categorias',  # Cambiado de categoria
+                'categorias',
                 'estado'
             )
+        }),
+        ('Estadísticas de Visitas', {  # Solo contador total
+            'fields': (
+                'contador_visitas_total',
+            ),
+            'classes': ('collapse',)  # Colapsable por defecto
         }),
         ('Imágenes', {
             'fields': (
@@ -225,13 +239,13 @@ class NoticiaAdmin(admin.ModelAdmin):
         })
     )
     
-    readonly_fields = ('url', 'contador_visitas', 'visitas_ultimas_24h')
+    # Solo el contador total como readonly
+    readonly_fields = (
+        'url', 
+        'contador_visitas_total',
+    )
     
     inlines = [ComentarioInline]
-
-    def visitas_ultimas_24h(self, obj):
-        return obj.visitas_ultima_semana  # Usando la propiedad existente para visitas de la última semana
-    visitas_ultimas_24h.short_description = 'Visitas (24h)'
 
     def editores_en_jefe_links(self, obj):
         """Muestra los enlaces a todos los editores en jefe asignados a esta noticia"""
@@ -268,6 +282,35 @@ class NoticiaAdmin(admin.ModelAdmin):
         return format_html(f'<a href="{url}">{obj.autor}</a>')
 
     autor_link.short_description = 'Autor'
+
+    def get_readonly_fields(self, request, obj=None):
+        """Personaliza los campos readonly según el contexto"""
+        readonly = list(self.readonly_fields)
+        
+        # Si no es superusuario, no puede editar el contador total
+        if not request.user.is_superuser:
+            readonly.extend(['contador_visitas_total'])
+            
+        return readonly
+
+    # Acción simplificada solo para resetear contador total
+    actions = ['reset_total_counter']
+
+    def reset_total_counter(self, request, queryset):
+        """Acción para resetear el contador total (usar con precaución)"""
+        if request.user.is_superuser:
+            count = queryset.update(contador_visitas_total=0)
+            self.message_user(
+                request,
+                f'Se resetearon los contadores totales de {count} noticias.'
+            )
+        else:
+            self.message_user(
+                request,
+                'Solo los superusuarios pueden resetear contadores totales.',
+                level='ERROR'
+            )
+    reset_total_counter.short_description = "Resetear contador total (Solo superuser)"
 
 
 @admin.register(Comentario)
