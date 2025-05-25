@@ -162,6 +162,7 @@ class ComentarioInline(admin.StackedInline):
 @admin.register(Noticia)
 class NoticiaAdmin(admin.ModelAdmin):
     list_display = (
+        'visitas_totales',        # Solo visitas totales
         'nombre_noticia', 
         'autor_link', 
         'editores_en_jefe_links',
@@ -169,7 +170,6 @@ class NoticiaAdmin(admin.ModelAdmin):
         'display_categorias',
         'solo_para_subscriptores', 
         'estado', 
-        'visitas_totales',        # Solo visitas totales
         'icono_comentarios'
     )
     
