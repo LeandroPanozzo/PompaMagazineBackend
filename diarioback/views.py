@@ -234,7 +234,57 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(noticias_mas_vistas, many=True)
         return Response(serializer.data)
+    @action(detail=False, methods=['get'])
+    def mas_leidas(self, request):
+        """
+        Return the most read news of all time (contador_visitas_total).
+        """
+        limit = request.query_params.get('limit', 10)
+        try:
+            limit = int(limit)
+        except ValueError:
+            limit = 10
+        
+        # Filter by estado and order by total visit count
+        noticias_mas_leidas = self.queryset.filter(
+            estado=3  # Published status
+        ).order_by('-contador_visitas_total')[:limit]
+        
+        serializer = self.get_serializer(noticias_mas_leidas, many=True)
+        return Response(serializer.data)
 
+    @action(detail=False, methods=['get'])
+    def populares_semana(self, request):
+        """
+        Alias para mas_vistas - noticias más populares de la semana
+        """
+        return self.mas_vistas(request)
+
+    @action(detail=False, methods=['get'])
+    def populares_historico(self, request):
+        """
+        Alias para mas_leidas - noticias más populares de todos los tiempos
+        """
+        return self.mas_leidas(request)
+
+    @action(detail=False, methods=['get'])
+    def estadisticas_visitas(self, request):
+        """
+        Retorna estadísticas generales de visitas
+        """
+        from django.db.models import Sum, Avg, Max
+        
+        stats = self.queryset.filter(estado=3).aggregate(
+            total_visitas_semanales=Sum('contador_visitas'),
+            total_visitas_historicas=Sum('contador_visitas_total'),
+            promedio_visitas_semanales=Avg('contador_visitas'),
+            promedio_visitas_historicas=Avg('contador_visitas_total'),
+            max_visitas_semanales=Max('contador_visitas'),
+            max_visitas_historicas=Max('contador_visitas_total'),
+            total_noticias=models.Count('id')
+        )
+        
+        return Response(stats)
     @action(detail=False, methods=['get'])
     def recientes(self, request):
         """

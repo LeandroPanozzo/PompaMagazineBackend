@@ -343,7 +343,10 @@ class Noticia(models.Model):
     url = models.URLField(max_length=200, blank=True, null=True)
     # Modificar la definición del slug para permitir slugs más largos (300 caracteres)
     slug = models.SlugField(max_length=300, unique=True, blank=True, editable=False)
-    contador_visitas = models.PositiveIntegerField(default=0)
+    # CONTADORES DE VISITAS - NUEVOS CAMPOS
+    contador_visitas = models.PositiveIntegerField(default=0, help_text="Contador semanal que se reinicia")
+    contador_visitas_total = models.PositiveIntegerField(default=0, help_text="Contador permanente total")
+    ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     ultima_actualizacion_contador = models.DateTimeField(default=timezone.now)
     Palabras_clave = models.CharField(max_length=200)
     imagen_local = models.ImageField(upload_to='images/', blank=True, null=True)
@@ -476,11 +479,28 @@ class Noticia(models.Model):
         }
 
     def incrementar_visitas(self, ip_address=None):
+        from datetime import timedelta
+        from django.utils import timezone
+        
         # Verifica si ha pasado una semana desde la última actualización
         if timezone.now() - self.ultima_actualizacion_contador > timedelta(days=7):
             self.contador_visitas = 0
             self.ultima_actualizacion_contador = timezone.now()
             self.save()
+
+        # NUEVO: Evitar incrementos duplicados por IP en un período corto
+        if ip_address:
+            # Verificar si esta IP ya visitó en los últimos 5 minutos
+            hace_5_minutos = timezone.now() - timedelta(minutes=5)
+            visita_reciente = NoticiaVisita.objects.filter(
+                noticia=self,
+                ip_address=ip_address,
+                fecha__gte=hace_5_minutos
+            ).exists()
+            
+            if visita_reciente:
+                # No incrementar si ya visitó recientemente
+                return False
 
         # Registra la visita
         NoticiaVisita.objects.create(
@@ -488,9 +508,12 @@ class Noticia(models.Model):
             ip_address=ip_address
         )
         
-        # Incrementa el contador
+        # Incrementa ambos contadores
         self.contador_visitas += 1
-        self.save()
+        self.contador_visitas_total += 1
+        self.save(update_fields=['contador_visitas', 'contador_visitas_total'])
+        
+        return True
 
     # Agrega una propiedad para obtener las visitas de la última semana
     @property

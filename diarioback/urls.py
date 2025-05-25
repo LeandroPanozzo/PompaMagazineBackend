@@ -73,6 +73,10 @@ urlpatterns = [
     
     # URLs específicas para las secciones de noticias
     path('noticias/mas-vistas/', NoticiaViewSet.as_view({'get': 'mas_vistas'}), name='noticias-mas-vistas'),
+    path('noticias/mas-leidas/', NoticiaViewSet.as_view({'get': 'mas_leidas'}), name='noticias-mas-leidas'),
+    path('noticias/populares-semana/', NoticiaViewSet.as_view({'get': 'populares_semana'}), name='noticias-populares-semana'),
+    path('noticias/populares-historico/', NoticiaViewSet.as_view({'get': 'populares_historico'}), name='noticias-populares-historico'),
+    path('noticias/estadisticas-visitas/', NoticiaViewSet.as_view({'get': 'estadisticas_visitas'}), name='noticias-estadisticas-visitas'),
     path('noticias/recientes/', NoticiaViewSet.as_view({'get': 'recientes'}), name='noticias-recientes'),
     path('noticias/destacadas/', NoticiaViewSet.as_view({'get': 'destacadas'}), name='noticias-destacadas'),
     path('noticias/politica/', NoticiaViewSet.as_view({'get': 'politica'}), name='noticias-politica'),
