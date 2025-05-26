@@ -4,27 +4,33 @@ from django.contrib.auth.models import User, Group
 from django.utils.html import format_html
 from .models import Rol, Trabajador, Usuario, Noticia, EstadoPublicacion, Imagen, Publicidad, Comentario
 from .models import Rol, Trabajador, Usuario, Noticia, EstadoPublicacion, Imagen, Publicidad, Comentario, UserProfile
+
+# --- Función helper para verificar permisos de admin ---
+def es_admin_completo(user):
+    """Verifica si el usuario tiene permisos de administración completos"""
+    return user.is_superuser or user.is_staff
+
 # --- Restricciones de permisos para User y Group ---
 
 class UserAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
     def has_change_permission(self, request, obj=None):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
     def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
 class GroupAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
     def has_change_permission(self, request, obj=None):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
     def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser
+        return es_admin_completo(request.user)
 
 # Desregistrar los modelos por defecto y registrarlos con las restricciones
 admin.site.unregister(User)
@@ -114,7 +120,6 @@ class TrabajadorAdmin(admin.ModelAdmin):
         }),
     )
 
-    # The rest of your methods remain the same
     def user_link(self, obj):
         url = reverse('admin:auth_user_change', args=[obj.user.id])
         return format_html(f'<a href="{url}">{obj.user}</a>')
@@ -153,8 +158,10 @@ class ComentarioInline(admin.StackedInline):
         obj.save()
 
     def has_add_permission(self, request, obj=None):
-        if request.user.is_superuser:
+        # Permitir a staff y superuser
+        if es_admin_completo(request.user):
             return True
+        # Mantener lógica original para trabajadores
         if hasattr(request.user, 'trabajador') and request.user.trabajador.rol.puede_dejar_comentarios:
             return True
         return False
@@ -271,8 +278,10 @@ class NoticiaAdmin(admin.ModelAdmin):
     icono_comentarios.short_description = 'Comentarios'
 
     def has_change_permission(self, request, obj=None):
-        if request.user.is_superuser:
+        # Permitir a staff y superuser
+        if es_admin_completo(request.user):
             return True
+        # Mantener lógica original para autores
         if obj and request.user == obj.autor.user:
             return True
         return False
@@ -287,8 +296,8 @@ class NoticiaAdmin(admin.ModelAdmin):
         """Personaliza los campos readonly según el contexto"""
         readonly = list(self.readonly_fields)
         
-        # Si no es superusuario, no puede editar el contador total
-        if not request.user.is_superuser:
+        # Solo superusuarios y staff pueden editar contadores
+        if not es_admin_completo(request.user):
             readonly.extend(['contador_visitas_total'])
             
         return readonly
@@ -297,8 +306,8 @@ class NoticiaAdmin(admin.ModelAdmin):
     actions = ['reset_total_counter']
 
     def reset_total_counter(self, request, queryset):
-        """Acción para resetear el contador total (usar con precaución)"""
-        if request.user.is_superuser:
+        """Acción para resetear el contador total"""
+        if es_admin_completo(request.user):
             count = queryset.update(contador_visitas_total=0)
             self.message_user(
                 request,
@@ -307,10 +316,10 @@ class NoticiaAdmin(admin.ModelAdmin):
         else:
             self.message_user(
                 request,
-                'Solo los superusuarios pueden resetear contadores totales.',
+                'Solo los administradores pueden resetear contadores totales.',
                 level='ERROR'
             )
-    reset_total_counter.short_description = "Resetear contador total (Solo superuser)"
+    reset_total_counter.short_description = "Resetear contador total (Solo administradores)"
 
 
 @admin.register(Comentario)
@@ -327,8 +336,10 @@ class ComentarioAdmin(admin.ModelAdmin):
     tiene_respuesta.short_description = 'Respondido'
 
     def has_add_permission(self, request):
-        if request.user.is_superuser:
+        # Permitir a staff y superuser
+        if es_admin_completo(request.user):
             return True
+        # Mantener lógica original para trabajadores
         try:
             trabajador = Trabajador.objects.get(user=request.user)
             return trabajador.rol.puede_dejar_comentarios
@@ -336,8 +347,10 @@ class ComentarioAdmin(admin.ModelAdmin):
             return False
 
     def has_change_permission(self, request, obj=None):
-        if request.user.is_superuser:
+        # Permitir a staff y superuser
+        if es_admin_completo(request.user):
             return True
+        # Mantener lógica original
         if obj and request.user == obj.noticia.autor.user:
             return True
         return False
