@@ -129,6 +129,11 @@ class NoticiaViewSet(viewsets.ModelViewSet):
         """
         queryset = Noticia.objects.all()
         
+        # Filter by autor (NEW - ADD THIS)
+        autor = self.request.query_params.get('autor')
+        if autor:
+            queryset = queryset.filter(autor=autor)
+        
         # Filter by estado (publication status)
         estado = self.request.query_params.get('estado')
         if estado:
