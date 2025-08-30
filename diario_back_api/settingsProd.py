@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+
 from pathlib import Path
 import os
 from datetime import timedelta
@@ -34,8 +35,7 @@ DEBUG = False  # Cambiado a False para producción
 
 ALLOWED_HOSTS = ['api.diarioelgobierno.ar', 'localhost', '127.0.0.1']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:    
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+if RENDER_EXTERNAL_HOSTNAME:    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # Application definition
 
@@ -51,60 +51,23 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'diarioback'
 ]
-
-# Session configuration
-SESSION_TRUSTED = 'django.contrib.sessions.backends.db'
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-
+# With this:
+SESSION_TRUSTED='django.contrib.sessions.backends.db'
+SESSION_ENGINE='django.contrib.sessions.backends.db'
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # DEBE estar primero
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
 ]
 
-# CORS Configuration - CORREGIDA
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://diarioelgobierno.ar",
-    "https://api.diarioelgobierno.ar",  # Agregado el subdominio de la API
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-# CSRF Configuration - CORREGIDA
-CSRF_TRUSTED_ORIGINS = [
-    'https://api.diarioelgobierno.ar',
-    'https://diarioelgobierno.ar',
-    'http://64.23.212.155'
-]
+CSRF_TRUSTED_ORIGINS = ['http://64.23.212.155', 'https://api.diarioelgobierno.ar']
 
 ROOT_URLCONF = 'diario_back_api.urls'
 
@@ -132,14 +95,14 @@ WSGI_APPLICATION = 'diario_back_api.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',        
+        'ENGINE':'django.db.backends.postgresql_psycopg2',        
         'NAME': 'projectone',
         'USER': 'projectoneuser',
         'PASSWORD': os.environ.get('DB_PASSWORD', default=''),
         'HOST': 'localhost',
         'PORT': ''
+        }
     }
-}
 
 
 # Password validation
@@ -177,8 +140,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
-if not DEBUG:    
-    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
+if not DEBUG:    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
     # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
     # and renames the files with unique names for each version to support long-term caching
@@ -189,36 +151,37 @@ if not DEBUG:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework Configuration
+#cors authorization
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://diarioelgobierno.ar",  # Añadido el dominio de producción
+]
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
+    'DEFAULT_PERMISSION_CLASSES': [  # Esto es lo que debe ser
         'rest_framework.permissions.AllowAny'
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',        
     ],
 }
-
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',  # Este es el backend predeterminado que usa 'username'
 ]
 
-# JWT Configuration
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),  # Token de acceso válido por 24 horas
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30), # Token de refresco válido por 30 días
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30), # Opcional: token de refresco válido por 7 días
     'ROTATE_REFRESH_TOKENS': True,                 # Cambiar el refresh token al renovarlo
     'BLACKLIST_AFTER_ROTATION': True,              # Invalidar refresh token viejo
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
 }
 
-# Security Configuration
 # CAMBIO PRINCIPAL: Desactivar redirección SSL ya que Nginx la maneja
 SECURE_SSL_REDIRECT = False
 PREPEND_WWW = False
 APPEND_SLASH = False  # Prueba esto temporalmente para ver si resuelve el problema
-
 # Mantener esta configuración para asegurar que Django reconozca correctamente
 # las solicitudes HTTPS que pasan por Nginx/Cloudflare
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -229,6 +192,10 @@ SESSION_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000  # 1 año
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
+
+# Configuración de CORS
+CORS_ALLOW_ALL_ORIGINS = True  # Considera limitar esto en producción
+CORS_ALLOW_CREDENTIALS = True
 
 # Configuración de archivos multimedia
 MEDIA_URL = '/media/'
