@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-
 from pathlib import Path
 import os
 from datetime import timedelta
@@ -22,23 +21,18 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', default='')
-
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False  # Cambiado a False para producción
 
 ALLOWED_HOSTS = ['api.diarioelgobierno.ar', 'localhost', '127.0.0.1']
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
-if RENDER_EXTERNAL_HOSTNAME:    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+if RENDER_EXTERNAL_HOSTNAME:    
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -51,23 +45,99 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'diarioback'
 ]
-# With this:
-SESSION_TRUSTED='django.contrib.sessions.backends.db'
-SESSION_ENGINE='django.contrib.sessions.backends.db'
+
+# Session configuration
+SESSION_TRUSTED = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # DEBE estar primero
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    
 ]
 
-CSRF_TRUSTED_ORIGINS = ['http://64.23.212.155', 'https://api.diarioelgobierno.ar']
+# ========================================
+# CONFIGURACIÓN CORS COMPLETAMENTE ABIERTA
+# ¡PELIGROSO! SOLO PARA DEBUGGING
+# ========================================
+
+# Permite TODOS los orígenes - CUALQUIER SITIO WEB puede hacer peticiones
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Permite credenciales (cookies, tokens JWT, headers de autorización)
+CORS_ALLOW_CREDENTIALS = True
+
+# Permite TODOS los headers
+CORS_ALLOW_HEADERS = [
+    '*',  # Esto permite cualquier header
+]
+
+# O específicamente todos estos headers comunes:
+# CORS_ALLOW_HEADERS = [
+#     'accept',
+#     'accept-encoding',
+#     'authorization',
+#     'content-type',
+#     'dnt',
+#     'origin',
+#     'user-agent',
+#     'x-csrftoken',
+#     'x-requested-with',
+#     'access-control-allow-origin',
+#     'x-forwarded-for',
+#     'x-forwarded-proto',
+#     'x-real-ip',
+#     'cache-control',
+#     'pragma',
+#     'expires',
+#     'if-modified-since',
+#     'if-none-match',
+# ]
+
+# Permite TODOS los métodos HTTP
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+    'HEAD',
+    'TRACE',
+    'CONNECT',
+]
+
+# Permite preflight para todas las peticiones
+CORS_PREFLIGHT_MAX_AGE = 86400
+
+# Expone todos los headers en las respuestas
+CORS_EXPOSE_HEADERS = ['*']
+
+# Comentar o eliminar la configuración restrictiva anterior:
+# CORS_ALLOWED_ORIGINS = [...]  # COMENTADO
+
+# ========================================
+# FIN CONFIGURACIÓN CORS ABIERTA
+# ========================================
+
+# CSRF Configuration - También más permisivo para evitar conflictos
+CSRF_TRUSTED_ORIGINS = [
+    'https://api.diarioelgobierno.ar',
+    'https://diarioelgobierno.ar',
+    'http://64.23.212.155',
+    'https://*.diarioelgobierno.ar',  # Cualquier subdominio
+    'http://*.diarioelgobierno.ar',   # HTTP también
+]
+
+# Deshabilitar algunas protecciones CSRF para debugging
+# CSRF_COOKIE_SECURE = False  # Descomenta si tienes problemas con HTTPS
+# CSRF_USE_SESSIONS = True    # Descomenta si tienes problemas con cookies
 
 ROOT_URLCONF = 'diario_back_api.urls'
 
@@ -89,25 +159,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'diario_back_api.wsgi.application'
 
-
 # Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 DATABASES = {
     'default': {
-        'ENGINE':'django.db.backends.postgresql_psycopg2',        
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',        
         'NAME': 'projectone',
         'USER': 'projectoneuser',
         'PASSWORD': os.environ.get('DB_PASSWORD', default=''),
         'HOST': 'localhost',
         'PORT': ''
-        }
     }
-
+}
 
 # Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -123,79 +187,59 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-
 STATIC_URL = 'static/'
-if not DEBUG:    # Tell Django to copy static assets into a path called `staticfiles` (this is specific to Render)
+if not DEBUG:    
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    # Enable the WhiteNoise storage backend, which compresses static files to reduce disk use
-    # and renames the files with unique names for each version to support long-term caching
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-#cors authorization
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://diarioelgobierno.ar",  # Añadido el dominio de producción
-]
+# REST Framework Configuration
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [  # Esto es lo que debe ser
+    'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny'
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',        
     ],
 }
+
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',  # Este es el backend predeterminado que usa 'username'
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
+# JWT Configuration
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),  # Token de acceso válido por 24 horas
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30), # Opcional: token de refresco válido por 7 días
-    'ROTATE_REFRESH_TOKENS': True,                 # Cambiar el refresh token al renovarlo
-    'BLACKLIST_AFTER_ROTATION': True,              # Invalidar refresh token viejo
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
 }
 
-# CAMBIO PRINCIPAL: Desactivar redirección SSL ya que Nginx la maneja
+# Security Configuration - Más permisivo para debugging
 SECURE_SSL_REDIRECT = False
 PREPEND_WWW = False
-APPEND_SLASH = False  # Prueba esto temporalmente para ver si resuelve el problema
-# Mantener esta configuración para asegurar que Django reconozca correctamente
-# las solicitudes HTTPS que pasan por Nginx/Cloudflare
+APPEND_SLASH = False
+
+# Mantener configuración de proxy
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Configuraciones de seguridad recomendadas
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000  # 1 año
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-
-# Configuración de CORS
-CORS_ALLOW_ALL_ORIGINS = True  # Considera limitar esto en producción
-CORS_ALLOW_CREDENTIALS = True
+# Configuraciones de seguridad - COMENTADAS para debugging
+# CSRF_COOKIE_SECURE = True      # COMENTADO - permite HTTP
+# SESSION_COOKIE_SECURE = True   # COMENTADO - permite HTTP
+# SECURE_HSTS_SECONDS = 31536000
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
 
 # Configuración de archivos multimedia
 MEDIA_URL = '/media/'
@@ -210,3 +254,23 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'diarioelgobiernoargentina@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'hyyq xjyu nflr mocz')
+
+# ========================================
+# LOGGING PARA DEBUGGING CORS (OPCIONAL)
+# ========================================
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'corsheaders': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
