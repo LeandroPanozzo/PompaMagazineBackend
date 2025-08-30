@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+
 from pathlib import Path
 import os
 from datetime import timedelta
@@ -39,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 'corsheaders',  # ELIMINADO - Ya no usamos CORS en Django
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'diarioback'
@@ -50,7 +51,7 @@ SESSION_TRUSTED = 'django.contrib.sessions.backends.db'
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware',  # ELIMINADO - CORS desactivado
+    'corsheaders.middleware.CorsMiddleware',  # DEBE estar primero
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -62,29 +63,81 @@ MIDDLEWARE = [
 ]
 
 # ========================================
-# CORS COMPLETAMENTE DESACTIVADO
-# Cloudflare manejará todos los headers CORS
+# CONFIGURACIÓN CORS COMPLETAMENTE ABIERTA
+# ¡PELIGROSO! SOLO PARA DEBUGGING
 # ========================================
 
-# Todas las configuraciones CORS eliminadas:
-# CORS_ALLOW_ALL_ORIGINS = ...
-# CORS_ALLOW_CREDENTIALS = ...
-# CORS_ALLOW_HEADERS = ...
-# CORS_ALLOW_METHODS = ...
-# CORS_PREFLIGHT_MAX_AGE = ...
-# CORS_EXPOSE_HEADERS = ...
-# CORS_ALLOWED_ORIGINS = ...
+# Permite TODOS los orígenes - CUALQUIER SITIO WEB puede hacer peticiones
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Permite credenciales (cookies, tokens JWT, headers de autorización)
+CORS_ALLOW_CREDENTIALS = True
+
+# Permite TODOS los headers
+CORS_ALLOW_HEADERS = [
+    '*',  # Esto permite cualquier header
+]
+
+# O específicamente todos estos headers comunes:
+# CORS_ALLOW_HEADERS = [
+#     'accept',
+#     'accept-encoding',
+#     'authorization',
+#     'content-type',
+#     'dnt',
+#     'origin',
+#     'user-agent',
+#     'x-csrftoken',
+#     'x-requested-with',
+#     'access-control-allow-origin',
+#     'x-forwarded-for',
+#     'x-forwarded-proto',
+#     'x-real-ip',
+#     'cache-control',
+#     'pragma',
+#     'expires',
+#     'if-modified-since',
+#     'if-none-match',
+# ]
+
+# Permite TODOS los métodos HTTP
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+    'HEAD',
+    'TRACE',
+    'CONNECT',
+]
+
+# Permite preflight para todas las peticiones
+CORS_PREFLIGHT_MAX_AGE = 86400
+
+# Expone todos los headers en las respuestas
+CORS_EXPOSE_HEADERS = ['*']
+
+# Comentar o eliminar la configuración restrictiva anterior:
+# CORS_ALLOWED_ORIGINS = [...]  # COMENTADO
 
 # ========================================
+# FIN CONFIGURACIÓN CORS ABIERTA
+# ========================================
 
-# CSRF Configuration
+# CSRF Configuration - También más permisivo para evitar conflictos
 CSRF_TRUSTED_ORIGINS = [
     'https://api.diarioelgobierno.ar',
     'https://diarioelgobierno.ar',
     'http://64.23.212.155',
-    'https://*.diarioelgobierno.ar',
-    'http://*.diarioelgobierno.ar',
+    'https://*.diarioelgobierno.ar',  # Cualquier subdominio
+    'http://*.diarioelgobierno.ar',   # HTTP también
 ]
+
+# Deshabilitar algunas protecciones CSRF para debugging
+# CSRF_COOKIE_SECURE = False  # Descomenta si tienes problemas con HTTPS
+# CSRF_USE_SESSIONS = True    # Descomenta si tienes problemas con cookies
 
 ROOT_URLCONF = 'diario_back_api.urls'
 
@@ -173,13 +226,20 @@ SIMPLE_JWT = {
     'SIGNING_KEY': SECRET_KEY,
 }
 
-# Security Configuration
+# Security Configuration - Más permisivo para debugging
 SECURE_SSL_REDIRECT = False
 PREPEND_WWW = False
 APPEND_SLASH = False
 
 # Mantener configuración de proxy
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Configuraciones de seguridad - COMENTADAS para debugging
+# CSRF_COOKIE_SECURE = True      # COMENTADO - permite HTTP
+# SESSION_COOKIE_SECURE = True   # COMENTADO - permite HTTP
+# SECURE_HSTS_SECONDS = 31536000
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
 
 # Configuración de archivos multimedia
 MEDIA_URL = '/media/'
@@ -195,7 +255,9 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'diarioelgobiernoargentina@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'hyyq xjyu nflr mocz')
 
-# Logging básico (sin CORS debug)
+# ========================================
+# LOGGING PARA DEBUGGING CORS (OPCIONAL)
+# ========================================
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -204,7 +266,11 @@ LOGGING = {
             'class': 'logging.StreamHandler',
         },
     },
-    'root': {
-        'handlers': ['console'],
+    'loggers': {
+        'corsheaders': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }
