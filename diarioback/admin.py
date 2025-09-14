@@ -3,8 +3,12 @@ from django.urls import reverse
 from django.contrib.auth.models import User, Group, Permission
 from django.utils.html import format_html
 from django.contrib.contenttypes.models import ContentType
-from .models import Rol, Trabajador, Usuario, Noticia, EstadoPublicacion, Imagen, Publicidad, Comentario
-from .models import Rol, Trabajador, Usuario, Noticia, EstadoPublicacion, Imagen, Publicidad, Comentario, UserProfile
+from django.utils.safestring import mark_safe
+from django import forms
+from .models import (
+    Trabajador, Usuario, Contenido, EstadoPublicacion, Publicidad, 
+    UserProfile, EspacioReferencia, ImagenLink, ContenidoVisita, PasswordResetToken
+)
 
 # --- Función helper para verificar permisos de admin ---
 def es_admin_completo(user):
@@ -69,28 +73,16 @@ admin.site.register(Group, GroupAdmin)
 
 # --- Administración de los modelos personalizados ---
 
-@admin.register(Rol)
-class RolAdmin(StaffPermissionMixin, admin.ModelAdmin):
-    list_display = ('nombre_rol', 'puede_publicar', 'puede_editar', 'puede_eliminar', 'puede_asignar_roles', 'puede_dejar_comentarios')
-    search_fields = ('nombre_rol',)
-
-from django import forms
-from .models import Trabajador
-
-from django import forms
-from .models import Trabajador, UserProfile
-from django.core.files.uploadedfile import InMemoryUploadedFile
-
 class TrabajadorForm(forms.ModelForm):
     foto_perfil_temp = forms.ImageField(
         required=False, 
         label="Foto de Perfil",
-        help_text="La imagen será subida automáticamente a Imgur"
+        help_text="La imagen será subida automáticamente a ImgBB"
     )
     
     class Meta:
         model = Trabajador
-        fields = ['nombre', 'apellido', 'rol', 'user', 'foto_perfil_temp']
+        fields = ['nombre', 'apellido', 'user', 'foto_perfil_temp']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -102,19 +94,23 @@ class TrabajadorForm(forms.ModelForm):
         instance = super().save(commit=False)
         
         if not instance.user_profile:
+            # Crear nuevo UserProfile
             instance.user_profile = UserProfile.objects.create(
                 nombre=instance.nombre,
                 apellido=instance.apellido,
                 es_trabajador=True
             )
         else:
+            # Actualizar UserProfile existente con los nuevos datos
+            instance.user_profile.nombre = instance.nombre
+            instance.user_profile.apellido = instance.apellido
             if not instance.user_profile.es_trabajador:
                 instance.user_profile.es_trabajador = True
-                instance.user_profile.save()
+            instance.user_profile.save()
 
         foto_temp = self.cleaned_data.get('foto_perfil_temp')
         if foto_temp:
-            instance.foto_perfil_temp = foto_temp
+            instance.foto_perfil_local = foto_temp
 
         if commit:
             instance.save()
@@ -126,18 +122,22 @@ class TrabajadorAdmin(StaffPermissionMixin, admin.ModelAdmin):
     form = TrabajadorForm
     
     list_display = (
-        'correo', 'nombre', 'apellido', 'rol', 'user_link', 'mostrar_foto_perfil'
+        'correo', 'nombre', 'apellido', 'user_link', 'mostrar_foto_perfil', 
+        'total_contenidos', 'permisos_display'
     )
     search_fields = ('correo', 'nombre', 'apellido', 'user__username', 'user__email')
-    list_filter = ('rol',)
     
     fieldsets = (
         ('Información Personal', {
-            'fields': ('nombre', 'apellido', 'user', 'rol')
+            'fields': ('nombre', 'apellido', 'user')
         }),
         ('Foto de Perfil', {
             'fields': ('foto_perfil_temp',),
-            'description': 'La imagen se subirá automáticamente a Imgur al guardar'
+            'description': 'La imagen se subirá automáticamente a ImgBB al guardar'
+        }),
+        ('Permisos', {
+            'fields': (),
+            'description': 'Todos los trabajadores tienen permisos de editor por defecto (publicar, editar, eliminar)'
         }),
     )
 
@@ -149,16 +149,33 @@ class TrabajadorAdmin(StaffPermissionMixin, admin.ModelAdmin):
 
     def mostrar_foto_perfil(self, obj):
         if obj.foto_perfil:
-            return format_html('<img src="{}" style="max-height: 100px;">', obj.foto_perfil)
+            return format_html('<img src="{}" style="max-height: 50px;">', obj.foto_perfil)
         elif obj.foto_perfil_local:
-            return format_html('<img src="{}" style="max-height: 100px;">', obj.foto_perfil_local)
+            return format_html('<img src="{}" style="max-height: 50px;">', obj.foto_perfil_local.url)
         return "No tiene foto de perfil"
     
     mostrar_foto_perfil.short_description = 'Foto de Perfil'
 
+    def total_contenidos(self, obj):
+        return obj.contenidos.count()
+    
+    total_contenidos.short_description = 'Total Contenidos'
+
+    def permisos_display(self, obj):
+        permisos = []
+        if obj.puede_publicar():
+            permisos.append("Publicar")
+        if obj.puede_editar():
+            permisos.append("Editar")
+        if obj.puede_eliminar():
+            permisos.append("Eliminar")
+        return ", ".join(permisos) if permisos else "Sin permisos"
+    
+    permisos_display.short_description = 'Permisos'
+
     def save_model(self, request, obj, form, change):
-        obj.correo = obj.user.email
-        obj.contraseña = obj.user.password
+        if obj.user and obj.user.email:
+            obj.correo = obj.user.email
         super().save_model(request, obj, form, change)
 
 @admin.register(Usuario)
@@ -167,195 +184,325 @@ class UsuarioAdmin(StaffPermissionMixin, admin.ModelAdmin):
     search_fields = ('correo', 'nombre_usuario')
     list_filter = ('esta_subscrito',)
 
-class ComentarioInline(admin.StackedInline):
-    model = Comentario
+@admin.register(UserProfile)
+class UserProfileAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    list_display = ('nombre', 'apellido', 'user', 'es_trabajador')
+    search_fields = ('nombre', 'apellido', 'user__username', 'user__email')
+    list_filter = ('es_trabajador',)
+
+# Inlines para Contenido
+class EspacioReferenciaInline(admin.TabularInline):
+    model = EspacioReferencia
     extra = 1
-    readonly_fields = ('autor', 'fecha_creacion')
-    fields = ('contenido', 'fecha_creacion', 'respuesta', 'fecha_respuesta')
+    fields = ('orden', 'texto_mostrar', 'url')
+    ordering = ('orden',)
 
-    def save_model(self, request, obj, form, change):
-        if not obj.pk:
-            obj.autor = request.user
-        obj.save()
+class ImagenLinkInline(admin.TabularInline):
+    model = ImagenLink
+    extra = 1
+    fields = ('numero_imagen', 'url_tienda', 'texto_descripcion')
+    ordering = ('numero_imagen',)
 
-    def has_add_permission(self, request, obj=None):
-        if es_admin_completo(request.user):
-            return True
-        if hasattr(request.user, 'trabajador') and request.user.trabajador.rol.puede_dejar_comentarios:
-            return True
-        return False
+# Formulario personalizado para Contenido
+class ContenidoForm(forms.ModelForm):
+    class Meta:
+        model = Contenido
+        fields = '__all__'
+        widgets = {
+            'contenido_news': forms.Textarea(attrs={'rows': 10}),
+            'subtitulos_news': forms.Textarea(attrs={'rows': 4}),
+            'subtitulo_issue': forms.Textarea(attrs={'rows': 4}),
+            'subtitulo_madeinarg': forms.Textarea(attrs={'rows': 4}),
+            'frase_final_issue': forms.Textarea(attrs={'rows': 3}),
+            'tags_marcas': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Separar tags con comas'}),
+        }
 
-@admin.register(Noticia)
-class NoticiaAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Mostrar solo campos relevantes según la categoría
+        if self.instance and self.instance.categoria:
+            self.setup_fields_for_category()
+
+    def setup_fields_for_category(self):
+        categoria = self.instance.categoria
+        
+        # Ocultar campos irrelevantes según la categoría
+        if categoria != 'issues':
+            for field in ['numero_issue', 'nombre_modelo', 'subtitulo_issue', 'frase_final_issue', 'video_youtube_issue']:
+                if field in self.fields:
+                    self.fields[field].widget = forms.HiddenInput()
+            # Ocultar campos de backstage
+            for i in range(1, 31):
+                backstage_field = f'backstage_{i}'
+                if backstage_field in self.fields:
+                    self.fields[backstage_field].widget = forms.HiddenInput()
+        
+        if categoria != 'madeinarg':
+            for field in ['subcategoria_madeinarg', 'subtitulo_madeinarg', 'tags_marcas']:
+                if field in self.fields:
+                    self.fields[field].widget = forms.HiddenInput()
+        
+        if categoria != 'news':
+            for field in ['subtitulos_news', 'contenido_news', 'video_youtube_news']:
+                if field in self.fields:
+                    self.fields[field].widget = forms.HiddenInput()
+
+@admin.register(Contenido)
+class ContenidoAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    form = ContenidoForm
+    inlines = [EspacioReferenciaInline, ImagenLinkInline]
+    
     list_display = (
-        'visitas_totales',
-        'nombre_noticia', 
-        'autor_link', 
-        'editores_en_jefe_links',
-        'fecha_publicacion', 
-        'display_categorias',
-        'solo_para_subscriptores', 
-        'estado', 
-        'icono_comentarios'
+        'titulo_corto',
+        'categoria',
+        'autor_link',
+        'fecha_publicacion',
+        'estado_badge',
+        'contador_visitas',
+        'contador_visitas_total',
+        'mostrar_imagen_principal'
     )
     
     list_filter = (
-        'autor', 
-        'fecha_publicacion', 
-        'solo_para_subscriptores', 
-        'estado'
+        'categoria',
+        'estado',
+        'autor',
+        'fecha_publicacion',
+        'subcategoria_madeinarg'
     )
-
-    def display_categorias(self, obj):
-        return obj.categorias
-    display_categorias.short_description = 'Categorías'
     
-    def visitas_totales(self, obj):
-        return obj.contador_visitas_total
-    visitas_totales.short_description = 'Visitas Total'
-    visitas_totales.admin_order_field = 'contador_visitas_total'
-    
-    search_fields = ('nombre_noticia', 'Palabras_clave')
+    search_fields = ('titulo', 'contenido_news', 'tags_marcas', 'nombre_modelo')
     date_hierarchy = 'fecha_publicacion'
-    ordering = ['-contador_visitas_total']
+    ordering = ['-fecha_publicacion']
     
-    fieldsets = (
-        ('Información Principal', {
-            'fields': (
-                'nombre_noticia', 
-                'subtitulo', 
-                'contenido', 
-                'Palabras_clave'
-            )
-        }),
-        ('Metadatos', {
-            'fields': (
-                'autor', 
-                'editores_en_jefe',
-                'fecha_publicacion', 
-                'categorias',
-                'estado'
-            )
-        }),
-        ('Estadísticas de Visitas', {
-            'fields': (
-                'contador_visitas_total',
-            ),
-            'classes': ('collapse',)
-        }),
-        ('Imágenes', {
-            'fields': (
-                'imagen_1', 
-                'imagen_2', 
-                'imagen_3', 
-                'imagen_4', 
-                'imagen_5', 
-                'imagen_6'
-            )
-        }),
-        ('Opciones Avanzadas', {
-            'fields': (
-                'solo_para_subscriptores', 
-                'tiene_comentarios', 
-                'url'
-            )
-        })
-    )
-    
-    readonly_fields = (
-        'url', 
-        'contador_visitas_total',
-    )
-    
-    inlines = [ComentarioInline]
-
-    def editores_en_jefe_links(self, obj):
-        links = []
-        for editor in obj.editores_en_jefe.all():
-            url = reverse('admin:auth_user_change', args=[editor.user.id])
-            links.append(format_html(f'<a href="{url}">{editor}</a>'))
+    def get_fieldsets(self, request, obj=None):
+        """Devuelve fieldsets dinámicos según la categoría"""
+        base_fieldsets = [
+            ('Información Principal', {
+                'fields': ('categoria', 'titulo', 'autor', 'fecha_publicacion', 'estado')
+            })
+        ]
         
-        if links:
-            return format_html(', '.join(links))
-        return "No asignados"
+        if obj and obj.categoria:
+            if obj.categoria == 'issues':
+                base_fieldsets.extend([
+                    ('Datos de Issue', {
+                        'fields': ('numero_issue', 'nombre_modelo', 'subtitulo_issue', 'frase_final_issue', 'video_youtube_issue')
+                    }),
+                    ('Imágenes Backstage', {
+                        'fields': tuple(f'backstage_{i}' for i in range(1, 11)),
+                        'classes': ('collapse',)
+                    })
+                ])
+            
+            elif obj.categoria == 'madeinarg':
+                base_fieldsets.append(
+                    ('Datos de MadeInArg', {
+                        'fields': ('subcategoria_madeinarg', 'subtitulo_madeinarg', 'tags_marcas')
+                    })
+                )
+            
+            elif obj.categoria == 'news':
+                base_fieldsets.append(
+                    ('Datos de News', {
+                        'fields': ('subtitulos_news', 'contenido_news', 'video_youtube_news')
+                    })
+                )
+        else:
+            # Si no hay objeto (creación), mostrar todos los campos específicos colapsados
+            base_fieldsets.extend([
+                ('Datos de Issue', {
+                    'fields': ('numero_issue', 'nombre_modelo', 'subtitulo_issue', 'frase_final_issue', 'video_youtube_issue'),
+                    'classes': ('collapse',)
+                }),
+                ('Datos de MadeInArg', {
+                    'fields': ('subcategoria_madeinarg', 'subtitulo_madeinarg', 'tags_marcas'),
+                    'classes': ('collapse',)
+                }),
+                ('Datos de News', {
+                    'fields': ('subtitulos_news', 'contenido_news', 'video_youtube_news'),
+                    'classes': ('collapse',)
+                })
+            ])
+        
+        # Agregar fieldsets comunes
+        base_fieldsets.extend([
+            ('Imágenes Principales', {
+                'fields': tuple(f'imagen_{i}' for i in range(1, 11)),
+                'classes': ('collapse',)
+            }),
+            ('Estadísticas', {
+                'fields': ('contador_visitas', 'contador_visitas_total', 'ultima_actualizacion_contador'),
+                'classes': ('collapse',)
+            })
+        ])
+        
+        return base_fieldsets
     
-    editores_en_jefe_links.short_description = 'Editores en Jefe'
-
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-
-    def icono_comentarios(self, obj):
-        if obj.tiene_comentarios:
-            return format_html('<img src="/static/admin/img/icon-yes.svg" alt="Tiene comentarios">')
-        return format_html('<img src="/static/admin/img/icon-no.svg" alt="No tiene comentarios">')
-    
-    icono_comentarios.short_description = 'Comentarios'
+    def titulo_corto(self, obj):
+        if len(obj.titulo) > 50:
+            return obj.titulo[:50] + '...'
+        return obj.titulo
+    titulo_corto.short_description = 'Título'
     
     def autor_link(self, obj):
         url = reverse('admin:auth_user_change', args=[obj.autor.user.id])
-        return format_html(f'<a href="{url}">{obj.autor}</a>')
-
+        return format_html(f'<a href="{url}">{obj.autor.nombre} {obj.autor.apellido}</a>')
     autor_link.short_description = 'Autor'
-
+    
+    def estado_badge(self, obj):
+        if not obj.estado:
+            return format_html('<span style="color: gray;">Sin estado</span>')
+        
+        colors = {
+            'publicado': 'green',
+            'borrador': 'orange',
+            'en_papelera': 'red',
+            'listo_para_editar': 'blue'
+        }
+        color = colors.get(obj.estado.nombre_estado, 'gray')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.estado.get_nombre_estado_display()
+        )
+    estado_badge.short_description = 'Estado'
+    
+    def mostrar_imagen_principal(self, obj):
+        if obj.imagen_1:
+            return format_html('<img src="{}" style="max-height: 50px;">', obj.imagen_1)
+        return "Sin imagen"
+    mostrar_imagen_principal.short_description = 'Imagen Principal'
+    
+    readonly_fields = ('contador_visitas_total', 'ultima_actualizacion_contador')
+    
     def get_readonly_fields(self, request, obj=None):
         readonly = list(self.readonly_fields)
         
-        if not es_admin_completo(request.user):
-            readonly.extend(['contador_visitas_total'])
+        # Auto-generar número de issue
+        if obj and obj.categoria == 'issues' and obj.numero_issue:
+            readonly.append('numero_issue')
             
         return readonly
 
-    actions = ['reset_total_counter']
+    actions = ['reset_total_counter', 'cambiar_a_publicado', 'cambiar_a_borrador']
 
     def reset_total_counter(self, request, queryset):
         if es_admin_completo(request.user):
-            count = queryset.update(contador_visitas_total=0)
+            count = queryset.update(contador_visitas_total=0, contador_visitas=0)
             self.message_user(
                 request,
-                f'Se resetearon los contadores totales de {count} noticias.'
+                f'Se resetearon los contadores de {count} contenidos.'
             )
         else:
             self.message_user(
                 request,
-                'Solo los administradores pueden resetear contadores totales.',
+                'Solo los administradores pueden resetear contadores.',
                 level='ERROR'
             )
-    reset_total_counter.short_description = "Resetear contador total (Solo administradores)"
+    reset_total_counter.short_description = "Resetear contadores"
 
-@admin.register(Comentario)
-class ComentarioAdmin(StaffPermissionMixin, admin.ModelAdmin):
-    list_display = ('noticia', 'autor', 'fecha_creacion', 'tiene_respuesta')
-    list_filter = ('noticia', 'autor', 'fecha_creacion')
-    search_fields = ('noticia__nombre_noticia', 'autor__username', 'contenido')
-    readonly_fields = ('noticia', 'autor', 'contenido', 'fecha_creacion')
+    def cambiar_a_publicado(self, request, queryset):
+        try:
+            estado_publicado = EstadoPublicacion.objects.get(nombre_estado='publicado')
+            count = queryset.update(estado=estado_publicado)
+            self.message_user(
+                request,
+                f'Se cambió el estado de {count} contenidos a "Publicado".'
+            )
+        except EstadoPublicacion.DoesNotExist:
+            self.message_user(
+                request,
+                'No se encontró el estado "Publicado". Créalo primero.',
+                level='ERROR'
+            )
+    cambiar_a_publicado.short_description = "Cambiar a Publicado"
 
-    def tiene_respuesta(self, obj):
-        return bool(obj.respuesta)
-    
-    tiene_respuesta.boolean = True
-    tiene_respuesta.short_description = 'Respondido'
+    def cambiar_a_borrador(self, request, queryset):
+        try:
+            estado_borrador = EstadoPublicacion.objects.get(nombre_estado='borrador')
+            count = queryset.update(estado=estado_borrador)
+            self.message_user(
+                request,
+                f'Se cambió el estado de {count} contenidos a "Borrador".'
+            )
+        except EstadoPublicacion.DoesNotExist:
+            self.message_user(
+                request,
+                'No se encontró el estado "Borrador". Créalo primero.',
+                level='ERROR'
+            )
+    cambiar_a_borrador.short_description = "Cambiar a Borrador"
 
 @admin.register(EstadoPublicacion)
 class EstadoPublicacionAdmin(StaffPermissionMixin, admin.ModelAdmin):
-    list_display = ('nombre_estado',)
+    list_display = ('nombre_estado', 'get_nombre_display', 'contenidos_count')
     search_fields = ('nombre_estado',)
+    
+    def get_nombre_display(self, obj):
+        return obj.get_nombre_estado_display()
+    get_nombre_display.short_description = 'Nombre para mostrar'
+    
+    def contenidos_count(self, obj):
+        return Contenido.objects.filter(estado=obj).count()
+    contenidos_count.short_description = 'Contenidos con este estado'
 
-@admin.register(Imagen)
-class ImagenAdmin(StaffPermissionMixin, admin.ModelAdmin):
-    list_display = ('nombre_imagen', 'noticia')
-    search_fields = ('nombre_imagen',)
-    list_filter = ('noticia',)
+@admin.register(EspacioReferencia)
+class EspacioReferenciaAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    list_display = ('contenido', 'texto_mostrar', 'url', 'orden')
+    search_fields = ('texto_mostrar', 'contenido__titulo')
+    list_filter = ('contenido__categoria',)
+    ordering = ('contenido', 'orden')
+
+@admin.register(ImagenLink)
+class ImagenLinkAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    list_display = ('contenido', 'numero_imagen', 'texto_descripcion', 'url_tienda')
+    search_fields = ('texto_descripcion', 'contenido__titulo')
+    list_filter = ('contenido__categoria', 'numero_imagen')
+    ordering = ('contenido', 'numero_imagen')
+
+@admin.register(ContenidoVisita)
+class ContenidoVisitaAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    list_display = ('contenido', 'fecha', 'ip_address')
+    list_filter = ('fecha', 'contenido__categoria')
+    search_fields = ('contenido__titulo', 'ip_address')
+    date_hierarchy = 'fecha'
+    ordering = ['-fecha']
+    
+    def has_add_permission(self, request):
+        return False  # No permitir crear visitas manualmente
 
 @admin.register(Publicidad)
 class PublicidadAdmin(StaffPermissionMixin, admin.ModelAdmin):
-    list_display = ('tipo_anuncio', 'fecha_inicio', 'fecha_fin', 'noticia', 'impresiones', 'clics')
-    search_fields = ('tipo_anuncio', 'noticia__nombre_noticia')
-    list_filter = ('fecha_inicio', 'fecha_fin')
+    list_display = ('tipo_anuncio', 'fecha_inicio', 'fecha_fin', 'contenido', 'impresiones', 'clics')
+    search_fields = ('tipo_anuncio', 'contenido__titulo')
+    list_filter = ('fecha_inicio', 'fecha_fin', 'contenido__categoria')
+    date_hierarchy = 'fecha_inicio'
 
-# --- Comando de management para asignar permisos a usuarios staff existentes ---
-# Crear archivo: management/commands/asignar_permisos_staff.py
+@admin.register(PasswordResetToken)
+class PasswordResetTokenAdmin(StaffPermissionMixin, admin.ModelAdmin):
+    list_display = ('user', 'token', 'created_at', 'expires_at', 'used', 'is_token_valid')
+    list_filter = ('used', 'created_at')
+    search_fields = ('user__username', 'user__email', 'token')
+    readonly_fields = ('token', 'created_at', 'expires_at')
+    
+    def is_token_valid(self, obj):
+        return obj.is_valid()
+    is_token_valid.short_description = 'Token Válido'
+    is_token_valid.boolean = True
 
+    def has_add_permission(self, request):
+        return False  # Los tokens se crean automáticamente
+
+# Personalización del admin site
+admin.site.site_header = "Administración de Contenido"
+admin.site.site_title = "Admin Panel"
+admin.site.index_title = "Panel de Administración"
+
+# Comando de management para asignar permisos a usuarios staff existentes
 """
+Para crear el comando, guarda esto en: management/commands/asignar_permisos_staff.py
+
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User, Permission
 
